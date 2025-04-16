@@ -1,0 +1,34 @@
+[package]
+name = "fo3-wallet-api"
+version = "0.1.0"
+edition = "2021"
+description = "REST API server for FO3 multi-chain wallet and DeFi SDK"
+authors = ["FO3 Team"]
+license = "MIT"
+
+[dependencies]
+# Internal dependencies
+fo3-wallet = { path = "../fo3-wallet" }
+
+# Serialization
+serde = { workspace = true }
+serde_json = { workspace = true }
+
+# Async runtime
+tokio = { workspace = true }
+
+# Web server
+axum = { workspace = true }
+tower = { workspace = true }
+tower-http = { workspace = true }
+
+# Error handling
+anyhow = { workspace = true }
+thiserror = { workspace = true }
+
+# Logging
+tracing = { workspace = true }
+tracing-subscriber = { workspace = true }
+
+# Random number generation
+rand = { workspace = true }
