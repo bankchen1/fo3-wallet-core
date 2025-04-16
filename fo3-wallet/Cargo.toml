@@ -6,6 +6,12 @@ description = "FO3 Wallet Core - Multi-chain wallet and DeFi SDK"
 authors = ["FO3 Team"]
 license = "MIT"
 
+[features]
+default = ["ethereum", "bitcoin"]
+ethereum = []
+bitcoin = []
+solana = ["solana-sdk", "solana-client", "solana-transaction-status", "solana-program"]
+
 [dependencies]
 # Serialization
 serde = { workspace = true }
@@ -22,16 +28,29 @@ secp256k1 = { workspace = true }
 hmac = { workspace = true }
 sha2 = { workspace = true }
 sha3 = { workspace = true }
-ed25519-dalek = { workspace = true }
+ed25519-dalek = "2.1"
 bs58 = { workspace = true }
 base58 = { workspace = true }
 bitcoin = { workspace = true }
+bitcoin-wallet = { workspace = true }
+bitcoin-bech32 = { workspace = true }
+bitcoin-internals = { workspace = true }
 
 # Ethereum
 ethers = { workspace = true }
 ethers-providers = { workspace = true }
 ethers-signers = { workspace = true }
 ethers-core = { workspace = true }
+
+# Solana dependencies with feature flag
+solana-sdk = { workspace = true, optional = true }
+solana-client = { workspace = true, optional = true }
+solana-transaction-status = { workspace = true, optional = true }
+solana-program = { workspace = true, optional = true }
+
+# Specific versions to resolve dependency conflicts
+# curve25519-dalek = { workspace = true }
+# zeroize = { workspace = true }
 
 # HTTP client
 reqwest = { workspace = true }
