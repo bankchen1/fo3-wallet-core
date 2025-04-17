@@ -1,7 +1,7 @@
 [workspace]
 members = [
     "fo3-wallet",
-    "fo3-wallet-api",
+    "fo3-wallet-api", "fo3-wallet-solana",
     # Legacy projects (archived)
     # "legacy/wallet-core",
     # "legacy/wallet-api",
@@ -50,8 +50,6 @@ hmac = "0.12"
 sha2 = "0.10"
 sha3 = "0.10"
 bs58 = "0.5"
-
-# Solana dependencies are in fo3-wallet-solana crate
 
 # Web server
 axum = "0.5.17"
