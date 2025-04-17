@@ -9,6 +9,7 @@ This crate provides Solana blockchain integration for the FO3 Wallet Core librar
 - **Token Support**: Transfer SPL tokens and manage token accounts
 - **Staking**: Stake SOL to validators and manage stake accounts
 - **DeFi**: Swap tokens on Raydium DEX
+- **NFT Support**: Query NFTs and metadata
 
 ## Usage Examples
 
@@ -179,6 +180,20 @@ let signature = provider.execute_raydium_swap(
 ```
 
 See [Raydium Documentation](docs/raydium.md) for more details.
+
+### NFT Support
+
+```rust
+// Get NFTs owned by a wallet
+let wallet_address = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
+let nfts = provider.get_nfts_by_owner(wallet_address).await.unwrap();
+
+// Get NFT metadata
+let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+let metadata = provider.get_nft_metadata(mint).await.unwrap();
+```
+
+See [NFT Documentation](docs/nft.md) for more details.
 
 ## License
 

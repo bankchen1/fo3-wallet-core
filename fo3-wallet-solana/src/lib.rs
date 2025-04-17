@@ -35,6 +35,7 @@
 //!
 //! - **Raydium DEX**: Swap tokens on Raydium
 //! - **Token Management**: Get token information and balances
+//! - **NFT Support**: Query NFTs and metadata
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -68,6 +69,14 @@ pub use raydium::*;
 // Raydium tests
 #[cfg(test)]
 mod raydium_test;
+
+// NFT module
+mod nft;
+pub use nft::*;
+
+// NFT tests
+#[cfg(test)]
+mod nft_test;
 
 /// Represents a Solana transaction with basic fields.
 ///
@@ -186,6 +195,29 @@ pub struct SolanaProvider {
 }
 
 impl SolanaProvider {
+    /// Get NFT client
+    pub fn get_nft_client(&self) -> NftClient {
+        let client = RpcClient::new_with_commitment(
+            self.config.url.clone(),
+            CommitmentConfig {
+                commitment: CommitmentLevel::Confirmed,
+            },
+        );
+
+        NftClient::new(client)
+    }
+
+    /// Get NFTs owned by a wallet
+    pub async fn get_nfts_by_owner(&self, owner: &str) -> Result<Vec<NftToken>> {
+        let nft_client = self.get_nft_client();
+        nft_client.get_nfts_by_owner(owner).await
+    }
+
+    /// Get NFT metadata
+    pub async fn get_nft_metadata(&self, mint: &str) -> Result<NftMetadata> {
+        let nft_client = self.get_nft_client();
+        nft_client.get_nft_metadata(mint).await
+    }
     /// Get Raydium client
     pub fn get_raydium_client(&self) -> RaydiumClient {
         let client = RpcClient::new_with_commitment(

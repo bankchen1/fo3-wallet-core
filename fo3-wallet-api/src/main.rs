@@ -8,6 +8,9 @@ mod solana;
 #[cfg(feature = "solana")]
 mod raydium;
 
+#[cfg(feature = "solana")]
+mod nft;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -360,7 +363,10 @@ async fn main() -> anyhow::Result<()> {
             // Raydium routes
             .route("/defi/swap/pairs", get(raydium::get_token_pairs))
             .route("/defi/swap/preview", post(raydium::get_swap_preview))
-            .route("/defi/swap/execute", post(raydium::execute_swap));
+            .route("/defi/swap/execute", post(raydium::execute_swap))
+            // NFT routes
+            .route("/nft/:wallet_address", get(nft::get_nfts_by_owner))
+            .route("/nft/:mint/metadata", get(nft::get_nft_metadata));
     }
 
     // Add state extension
