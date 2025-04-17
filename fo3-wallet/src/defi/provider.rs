@@ -1,6 +1,5 @@
 //! DeFi provider
 
-use std::sync::Arc;
 // We'll use mock implementations for now
 
 use crate::error::{Error, Result};

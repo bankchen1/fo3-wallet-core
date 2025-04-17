@@ -7,13 +7,12 @@ use ethers::prelude::*;
 use ethers::core::types::{Address, U256};
 use ethers::providers::{Provider, Http};
 use ethers::contract::abigen;
-use ethers::signers::{LocalWallet, Signer, Wallet};
+use ethers::signers::{Signer, Wallet};
 use k256::ecdsa::SigningKey;
 
 use crate::error::{Error, Result};
-use crate::crypto::keys::KeyType;
 use crate::transaction::provider::ProviderConfig;
-use super::types::{Protocol, Token, TokenAmount, LendingAction, LendingRequest, LendingResult};
+use super::types::{Protocol, LendingAction, LendingRequest, LendingResult};
 
 // Generate type-safe bindings for Aave V2 LendingPool
 abigen!(

@@ -4,14 +4,14 @@ use std::str::FromStr;
 use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 
-use ethers::prelude::{Address, TransactionRequest as EthersTransactionRequest, U256, NameOrAddress};
+use ethers::prelude::{Address, TransactionRequest as EthersTransactionRequest, U256};
 use ethers_providers::{Http, Provider};
 use ethers_signers::{LocalWallet, Signer};
 
 use crate::error::{Error, Result};
 use crate::crypto::keys::KeyType;
 use super::types::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
-use super::provider::{ProviderConfig, ProviderType};
+use super::provider::ProviderConfig;
 
 /// Ethereum transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]

@@ -7,7 +7,7 @@ use ethers::prelude::*;
 use ethers::core::types::{Address, U256};
 use ethers::providers::{Provider, Http};
 use ethers::contract::abigen;
-use ethers::signers::{LocalWallet, Signer, Wallet};
+use ethers::signers::{Signer, Wallet};
 use k256::ecdsa::SigningKey;
 
 use crate::error::{Error, Result};

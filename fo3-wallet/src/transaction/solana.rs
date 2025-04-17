@@ -1,13 +1,12 @@
 //! Solana transaction functionality
 
-use std::str::FromStr;
 use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 
 use crate::error::{Error, Result};
 use crate::crypto::keys::KeyType;
 use super::types::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
-use super::provider::{ProviderConfig, ProviderType};
+use super::provider::ProviderConfig;
 
 /// Solana transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]

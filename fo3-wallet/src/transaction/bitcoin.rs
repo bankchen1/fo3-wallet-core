@@ -14,7 +14,7 @@ use secp256k1::Secp256k1;
 use crate::error::{Error, Result};
 use crate::crypto::keys::KeyType;
 use super::types::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
-use super::provider::{ProviderConfig, ProviderType};
+use super::provider::ProviderConfig;
 
 /// Bitcoin transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
