@@ -35,15 +35,14 @@ use serde::{Serialize, Deserialize};
 
 use solana_sdk::{
     pubkey::Pubkey,
-    signature::Keypair,
+    signature::{Keypair, Signer},
     system_instruction,
     transaction::Transaction as SolTransaction,
     commitment_config::{CommitmentConfig, CommitmentLevel},
     instruction::Instruction,
     program_pack::Pack,
-    stake::{self, state::{StakeState, Delegation, Stake}, instruction as stake_instruction},
+    stake::{self, state::StakeStateV2, instruction as stake_instruction},
     clock::Epoch,
-    sysvar,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_transaction_status::{UiTransactionStatusMeta, UiTransactionEncoding};
@@ -280,6 +279,7 @@ impl SolanaProvider {
                 payer,
                 &to_pubkey,
                 &token_mint,
+                &TOKEN_PROGRAM_ID,
             );
             instructions.push(create_account_ix);
         }
@@ -471,7 +471,7 @@ impl SolanaProvider {
         let stake_account_pubkey = stake_account.pubkey();
 
         // Calculate rent-exempt balance for the stake account
-        let rent = self.client.get_minimum_balance_for_rent_exemption(std::mem::size_of::<StakeState>())
+        let rent = self.client.get_minimum_balance_for_rent_exemption(std::mem::size_of::<StakeStateV2>())
             .map_err(|e| Error::Transaction(format!("Failed to get rent exemption: {}", e)))?;
 
         // Total amount needed: rent + stake amount
@@ -485,7 +485,7 @@ impl SolanaProvider {
             &from_pubkey,
             &stake_account_pubkey,
             total_amount,
-            std::mem::size_of::<StakeState>() as u64,
+            std::mem::size_of::<StakeStateV2>() as u64,
             &stake::program::id(),
         );
         instructions.push(create_account_ix);
@@ -540,12 +540,12 @@ impl SolanaProvider {
         }
 
         // Parse the stake state
-        let stake_state = StakeState::deserialize(&account.data)
+        let stake_state = bincode::deserialize::<StakeStateV2>(&account.data)
             .map_err(|e| Error::Transaction(format!("Failed to parse stake state: {}", e)))?;
 
         // Extract stake information
         match stake_state {
-            StakeState::Initialized(_) => {
+            StakeStateV2::Initialized(_) => {
                 Ok(StakingInfo {
                     stake_account: stake_account.to_string(),
                     validator: "".to_string(),
@@ -554,7 +554,7 @@ impl SolanaProvider {
                     rewards: 0,
                 })
             },
-            StakeState::Stake(_, stake) => {
+            StakeStateV2::Stake(_, stake, _) => {
                 let validator = stake.delegation.voter_pubkey.to_string();
                 let amount = stake.delegation.stake;
                 let status = if stake.delegation.deactivation_epoch == Epoch::MAX {
