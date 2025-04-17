@@ -1,5 +1,8 @@
 //! DeFi provider
 
+use std::sync::Arc;
+// We'll use mock implementations for now
+
 use crate::error::{Error, Result};
 use crate::crypto::keys::KeyType;
 use crate::transaction::provider::ProviderConfig;
@@ -87,7 +90,7 @@ impl DeFiProvider for EthereumDeFiProvider {
         Ok(tokens)
     }
 
-    fn get_token_balance(&self, token: &Token, address: &str) -> Result<TokenAmount> {
+    fn get_token_balance(&self, token: &Token, _address: &str) -> Result<TokenAmount> {
         // In a real implementation, we would call the token contract
         // This is a simplified implementation
 
@@ -109,9 +112,10 @@ impl DeFiProvider for EthereumDeFiProvider {
         // This is a simplified implementation
 
         let price = match token.symbol.as_str() {
-            "ETH" => 3000.0,
+            "ETH" => 1800.0,
             "USDC" => 1.0,
             "USDT" => 1.0,
+            "stETH" => 1800.0,
             _ => 0.0,
         };
 
@@ -139,11 +143,18 @@ impl DeFiProvider for EthereumDeFiProvider {
     }
 
     fn execute_swap(&self, request: &SwapRequest) -> Result<SwapResult> {
-        // In a real implementation, we would call the protocol's router
-        // This is a simplified implementation
+        // For a real implementation, we need a wallet with private key
+        // Since we don't have that in this context, we'll just return a mock result
 
+        // Get the swap quote
         let to_amount = self.get_swap_quote(request)?;
 
+        // In a real implementation, we would:
+        // 1. Create a wallet from the private key
+        // 2. Call the appropriate protocol's router
+        // 3. Return the transaction hash and other details
+
+        // For now, we'll just return a mock result
         Ok(SwapResult {
             from: request.from.clone(),
             to: to_amount,
@@ -154,45 +165,103 @@ impl DeFiProvider for EthereumDeFiProvider {
     }
 
     fn execute_lending(&self, request: &LendingRequest) -> Result<LendingResult> {
-        // In a real implementation, we would call the protocol's lending pool
-        // This is a simplified implementation
+        // For a real implementation, we need a wallet with private key
+        // Since we don't have that in this context, we'll just return a mock result
 
-        Ok(LendingResult {
-            action: request.action.clone(),
-            transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
-            protocol: request.protocol.clone(),
-            fee: "0.001".to_string(),
-        })
+        // In a real implementation, we would:
+        // 1. Create a wallet from the private key
+        // 2. Call the appropriate protocol's lending pool
+        // 3. Return the transaction hash and other details
+
+        // Use the appropriate protocol
+        match request.protocol {
+            Protocol::Aave => {
+                // For now, we'll just return a mock result
+                Ok(LendingResult {
+                    action: request.action.clone(),
+                    transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
+                    protocol: Protocol::Aave,
+                    fee: "0.001".to_string(),
+                })
+            },
+            _ => {
+                // Fallback to simplified implementation
+                Ok(LendingResult {
+                    action: request.action.clone(),
+                    transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
+                    protocol: request.protocol.clone(),
+                    fee: "0.001".to_string(),
+                })
+            }
+        }
     }
 
     fn execute_staking(&self, request: &StakingRequest) -> Result<StakingResult> {
-        // In a real implementation, we would call the protocol's staking contract
-        // This is a simplified implementation
+        // For a real implementation, we need a wallet with private key
+        // Since we don't have that in this context, we'll just return a mock result
 
-        let rewards = match request.action {
-            super::types::StakingAction::ClaimRewards => {
-                Some(TokenAmount {
-                    token: Token {
-                        name: "Ethereum".to_string(),
-                        symbol: "ETH".to_string(),
-                        decimals: 18,
-                        address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_string(),
-                        key_type: KeyType::Ethereum,
-                        logo_url: None,
-                    },
-                    amount: "1000000000000000000".to_string(), // 1 ETH
+        // In a real implementation, we would:
+        // 1. Create a wallet from the private key
+        // 2. Call the appropriate protocol's staking contract
+        // 3. Return the transaction hash and other details
+
+        // Use the appropriate protocol
+        match request.protocol {
+            Protocol::Lido => {
+                // For now, we'll just return a mock result
+                let rewards = match request.action {
+                    super::types::StakingAction::ClaimRewards => {
+                        Some(TokenAmount {
+                            token: Token {
+                                name: "Lido Staked ETH".to_string(),
+                                symbol: "stETH".to_string(),
+                                decimals: 18,
+                                address: "0xae7ab96520DE3A18E5e111B5EaAb095312D7fE84".to_string(),
+                                key_type: KeyType::Ethereum,
+                                logo_url: Some("https://cryptologos.cc/logos/lido-dao-ldo-logo.png".to_string()),
+                            },
+                            amount: "1000000000000000000".to_string(), // 1 stETH
+                        })
+                    }
+                    _ => None,
+                };
+
+                Ok(StakingResult {
+                    action: request.action.clone(),
+                    transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
+                    protocol: Protocol::Lido,
+                    fee: "0.001".to_string(),
+                    rewards,
+                })
+            },
+            _ => {
+                // Fallback to simplified implementation
+                let rewards = match request.action {
+                    super::types::StakingAction::ClaimRewards => {
+                        Some(TokenAmount {
+                            token: Token {
+                                name: "Ethereum".to_string(),
+                                symbol: "ETH".to_string(),
+                                decimals: 18,
+                                address: "0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE".to_string(),
+                                key_type: KeyType::Ethereum,
+                                logo_url: None,
+                            },
+                            amount: "1000000000000000000".to_string(), // 1 ETH
+                        })
+                    }
+                    _ => None,
+                };
+
+                Ok(StakingResult {
+                    action: request.action.clone(),
+                    transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
+                    protocol: request.protocol.clone(),
+                    fee: "0.001".to_string(),
+                    rewards,
                 })
             }
-            _ => None,
-        };
-
-        Ok(StakingResult {
-            action: request.action.clone(),
-            transaction_hash: format!("0x{}", hex::encode(&[0u8; 32])),
-            protocol: request.protocol.clone(),
-            fee: "0.001".to_string(),
-            rewards,
-        })
+        }
     }
 }
 
@@ -246,7 +315,7 @@ impl DeFiProvider for SolanaDeFiProvider {
         Ok(tokens)
     }
 
-    fn get_token_balance(&self, token: &Token, address: &str) -> Result<TokenAmount> {
+    fn get_token_balance(&self, token: &Token, _address: &str) -> Result<TokenAmount> {
         // In a real implementation, we would call the token program
         // This is a simplified implementation
 

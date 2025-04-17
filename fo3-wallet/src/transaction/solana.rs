@@ -4,19 +4,6 @@ use std::str::FromStr;
 use std::sync::Arc;
 use serde::{Serialize, Deserialize};
 
-// Solana imports are commented out due to dependency conflicts
-// Instead, we'll use mock implementations for now
-// use solana_sdk::{
-//     pubkey::Pubkey,
-//     signature::{Keypair, Signature},
-//     system_instruction,
-//     transaction::Transaction as SolTransaction,
-//     commitment_config::{CommitmentConfig, CommitmentLevel},
-//     signer::Signer,
-// };
-// use solana_client::rpc_client::RpcClient;
-// use solana_transaction_status::{UiTransactionStatusMeta, EncodedConfirmedTransaction};
-
 use crate::error::{Error, Result};
 use crate::crypto::keys::KeyType;
 use super::types::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
@@ -48,16 +35,6 @@ pub struct MockSolTransaction {
     pub recent_blockhash: String,
 }
 
-/// Solana provider
-pub struct SolanaProvider {
-    /// Provider configuration
-    #[allow(dead_code)]
-    config: ProviderConfig,
-    /// Mock RPC client
-    #[allow(dead_code)]
-    client: Arc<MockRpcClient>,
-}
-
 /// Mock RPC client for testing
 #[derive(Debug)]
 pub struct MockRpcClient {
@@ -77,6 +54,15 @@ impl MockRpcClient {
     }
 }
 
+/// Solana provider
+pub struct SolanaProvider {
+    /// Provider configuration
+    #[allow(dead_code)]
+    config: ProviderConfig,
+    /// Mock RPC client
+    client: Arc<MockRpcClient>,
+}
+
 impl SolanaProvider {
     /// Create a new Solana provider
     pub fn new(config: ProviderConfig) -> Result<Self> {
@@ -89,7 +75,7 @@ impl SolanaProvider {
         })
     }
     
-    /// Create a Solana transaction
+    /// Create a mock Solana transaction
     fn create_transaction(&self, request: &TransactionRequest) -> Result<MockSolTransaction> {
         // Parse value
         let lamports = request.value.parse::<u64>()
