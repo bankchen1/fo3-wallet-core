@@ -13,6 +13,7 @@ fo3-wallet = { path = "../fo3-wallet" }
 # Serialization
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
+bincode = "1.3"
 
 # Error handling
 thiserror = "1.0"
@@ -27,10 +28,6 @@ solana-program = "1.16.0"
 # Encoding
 bs58 = "0.5"
 hex = "0.4"
-
-# Serialization
-serde_json = "1.0"
-bincode = "1.3"
 
 [patch.crates-io]
 curve25519-dalek = { git = "https://github.com/solana-labs/curve25519-dalek.git", rev = "c14774464c4d38de553c6ef2f48a10982c1b4801" }
