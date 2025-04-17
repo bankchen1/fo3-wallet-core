@@ -1,6 +1,33 @@
-//! Solana implementation for FO3 Wallet Core
+//! # Solana implementation for FO3 Wallet Core
 //!
-//! This crate provides Solana-specific functionality for the FO3 Wallet Core.
+//! This crate provides Solana blockchain integration for the FO3 Wallet Core library.
+//!
+//! ## Features
+//!
+//! - **Wallet Management**: Create and manage Solana wallets
+//! - **Transaction Handling**: Create, sign, and broadcast Solana transactions
+//! - **Token Support**: Transfer SPL tokens and manage token accounts
+//! - **Staking**: Stake SOL to validators and manage stake accounts
+//!
+//! ## Usage Examples
+//!
+//! ```rust,no_run
+//! use fo3_wallet::transaction::provider::{ProviderConfig, ProviderType};
+//! use fo3_wallet_solana::SolanaProvider;
+//!
+//! // Create provider configuration
+//! let config = ProviderConfig {
+//!     provider_type: ProviderType::Http,
+//!     url: "https://api.mainnet-beta.solana.com".to_string(),
+//!     api_key: None,
+//!     timeout: Some(30),
+//! };
+//!
+//! // Create Solana provider
+//! let provider = SolanaProvider::new(config).unwrap();
+//! ```
+//!
+//! See the README.md file for more examples.
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -28,100 +55,151 @@ use fo3_wallet::crypto::keys::KeyType;
 use fo3_wallet::transaction::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
 use fo3_wallet::transaction::provider::ProviderConfig;
 
-/// Solana transaction
+/// Represents a Solana transaction with basic fields.
+///
+/// This structure is used to represent a Solana transaction in a simplified format,
+/// containing only the essential information needed for most use cases.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct SolanaTransaction {
-    /// From address
+    /// Sender's address (public key)
     pub from: String,
-    /// To address
+    /// Recipient's address (public key)
     pub to: String,
-    /// Value in lamports
+    /// Amount in lamports (1 SOL = 1,000,000,000 lamports)
     pub value: u64,
-    /// Data
+    /// Additional data for the transaction
     pub data: Vec<u8>,
 }
 
-/// Solana token transfer parameters
+/// Parameters for transferring SPL tokens on Solana.
+///
+/// This structure contains all the necessary information to create a token transfer
+/// transaction on the Solana blockchain using the SPL Token program.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenTransferParams {
-    /// Token mint address
+    /// Token mint address (the address of the token's mint account)
     pub token_mint: String,
-    /// From address
+    /// Sender's address (public key)
     pub from: String,
-    /// To address
+    /// Recipient's address (public key)
     pub to: String,
-    /// Amount of tokens to transfer
+    /// Amount of tokens to transfer (in raw units, not accounting for decimals)
     pub amount: u64,
-    /// Decimals of the token
+    /// Number of decimal places the token uses
     pub decimals: u8,
 }
 
-/// Solana token information
+/// Information about an SPL token on Solana.
+///
+/// This structure contains metadata about a token on the Solana blockchain,
+/// including its mint address, name, symbol, decimals, and total supply.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct TokenInfo {
-    /// Token mint address
+    /// Token mint address (the address of the token's mint account)
     pub mint: String,
-    /// Token name
+    /// Human-readable name of the token
     pub name: String,
-    /// Token symbol
+    /// Symbol or ticker of the token (e.g., "SOL", "USDC")
     pub symbol: String,
-    /// Token decimals
+    /// Number of decimal places the token uses
     pub decimals: u8,
-    /// Token total supply
+    /// Total supply of the token in circulation
     pub total_supply: u64,
 }
 
-/// Solana staking parameters
+/// Parameters for staking SOL on Solana.
+///
+/// This structure contains all the necessary information to create a staking
+/// transaction on the Solana blockchain, including the staker's address,
+/// the validator to delegate to, and the amount to stake.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StakingParams {
-    /// From address (the staker)
+    /// Staker's address (public key)
     pub from: String,
-    /// Validator vote account address
+    /// Validator's vote account address to delegate stake to
     pub validator: String,
-    /// Amount to stake in lamports
+    /// Amount to stake in lamports (1 SOL = 1,000,000,000 lamports)
     pub amount: u64,
 }
 
-/// Solana staking information
+/// Information about a stake account on Solana.
+///
+/// This structure contains details about a stake account, including the stake account
+/// address, the validator it's delegated to, the staked amount, status, and rewards.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct StakingInfo {
-    /// Stake account address
+    /// Stake account address (public key)
     pub stake_account: String,
-    /// Validator vote account address
+    /// Validator's vote account address the stake is delegated to
     pub validator: String,
-    /// Staked amount in lamports
+    /// Amount staked in lamports (1 SOL = 1,000,000,000 lamports)
     pub amount: u64,
-    /// Status of the stake
+    /// Current status of the stake (Active, Activating, Deactivating, Inactive)
     pub status: StakingStatus,
     /// Rewards earned in lamports
     pub rewards: u64,
 }
 
-/// Solana staking status
+/// Status of a stake account on Solana.
+///
+/// This enum represents the different states a stake account can be in,
+/// based on its activation and deactivation state.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum StakingStatus {
-    /// Stake is active
+    /// Stake is fully activated and earning rewards
     Active,
-    /// Stake is activating
+    /// Stake is in the process of activating (warming up)
     Activating,
-    /// Stake is deactivating
+    /// Stake is in the process of deactivating (cooling down)
     Deactivating,
-    /// Stake is inactive
+    /// Stake is fully deactivated and not earning rewards
     Inactive,
 }
 
-/// Solana provider
+/// Provider for interacting with the Solana blockchain.
+///
+/// This struct provides methods for creating, signing, and broadcasting transactions
+/// on the Solana blockchain, as well as querying account information and token balances.
+/// It implements the `TransactionSigner`, `TransactionBroadcaster`, and `TransactionManager`
+/// traits from the `fo3-wallet` crate.
 pub struct SolanaProvider {
-    /// Provider configuration
+    /// Provider configuration with URL, API key, etc.
     #[allow(dead_code)]
     config: ProviderConfig,
-    /// RPC client
+    /// Solana RPC client for making API calls
     #[allow(dead_code)]
     client: Arc<RpcClient>,
 }
 
 impl SolanaProvider {
-    /// Create a new Solana provider
+    /// Creates a new Solana provider with the given configuration.
+    ///
+    /// This method initializes a new RPC client with the URL and commitment level
+    /// specified in the configuration.
+    ///
+    /// # Arguments
+    ///
+    /// * `config` - Provider configuration containing URL, API key, etc.
+    ///
+    /// # Returns
+    ///
+    /// A new `SolanaProvider` instance wrapped in a `Result`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// use fo3_wallet::transaction::provider::{ProviderConfig, ProviderType};
+    /// use fo3_wallet_solana::SolanaProvider;
+    ///
+    /// let config = ProviderConfig {
+    ///     provider_type: ProviderType::Http,
+    ///     url: "https://api.mainnet-beta.solana.com".to_string(),
+    ///     api_key: None,
+    ///     timeout: Some(30),
+    /// };
+    ///
+    /// let provider = SolanaProvider::new(config).unwrap();
+    /// ```
     pub fn new(config: ProviderConfig) -> Result<Self> {
         // Create the RPC client
         let client = RpcClient::new_with_commitment(
@@ -244,7 +322,42 @@ impl SolanaProvider {
         Ok(keypair)
     }
 
-    /// Get token balance for a given address and token mint
+    /// Gets the token balance for a given address and token mint.
+    ///
+    /// This method retrieves the balance of a specific SPL token for a given address.
+    /// It first gets the associated token account for the address and token mint,
+    /// then retrieves the balance from that account.
+    ///
+    /// # Arguments
+    ///
+    /// * `address` - The address (public key) to check the balance for
+    /// * `token_mint` - The mint address of the token
+    ///
+    /// # Returns
+    ///
+    /// The token balance as a `u64` wrapped in a `Result`.
+    /// Returns 0 if the token account doesn't exist or can't be accessed.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fo3_wallet::transaction::provider::{ProviderConfig, ProviderType};
+    /// # use fo3_wallet_solana::SolanaProvider;
+    /// #
+    /// # let config = ProviderConfig {
+    /// #     provider_type: ProviderType::Http,
+    /// #     url: "https://api.mainnet-beta.solana.com".to_string(),
+    /// #     api_key: None,
+    /// #     timeout: Some(30),
+    /// # };
+    /// #
+    /// # let provider = SolanaProvider::new(config).unwrap();
+    /// // Get USDC balance for an address
+    /// let usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    /// let address = "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg";
+    /// let balance = provider.get_token_balance(address, usdc_mint).unwrap();
+    /// println!("USDC balance: {}", balance);
+    /// ```
     #[allow(dead_code)]
     pub fn get_token_balance(&self, address: &str, token_mint: &str) -> Result<u64> {
         // Parse addresses
@@ -276,7 +389,41 @@ impl SolanaProvider {
         Ok(token_account_data.amount)
     }
 
-    /// Get token information for a given token mint
+    /// Gets information about a token from its mint address.
+    ///
+    /// This method retrieves information about an SPL token, including its
+    /// decimals and total supply. Note that the token name and symbol are not
+    /// stored on-chain in the mint account, so this method uses placeholder values.
+    /// In a real implementation, you would use a token registry or metadata program.
+    ///
+    /// # Arguments
+    ///
+    /// * `token_mint` - The mint address of the token
+    ///
+    /// # Returns
+    ///
+    /// A `TokenInfo` struct wrapped in a `Result`.
+    ///
+    /// # Example
+    ///
+    /// ```rust,no_run
+    /// # use fo3_wallet::transaction::provider::{ProviderConfig, ProviderType};
+    /// # use fo3_wallet_solana::SolanaProvider;
+    /// #
+    /// # let config = ProviderConfig {
+    /// #     provider_type: ProviderType::Http,
+    /// #     url: "https://api.mainnet-beta.solana.com".to_string(),
+    /// #     api_key: None,
+    /// #     timeout: Some(30),
+    /// # };
+    /// #
+    /// # let provider = SolanaProvider::new(config).unwrap();
+    /// // Get USDC token info
+    /// let usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+    /// let token_info = provider.get_token_info(usdc_mint).unwrap();
+    /// println!("Token decimals: {}", token_info.decimals);
+    /// println!("Token supply: {}", token_info.total_supply);
+    /// ```
     #[allow(dead_code)]
     pub fn get_token_info(&self, token_mint: &str) -> Result<TokenInfo> {
         // Parse token mint address
