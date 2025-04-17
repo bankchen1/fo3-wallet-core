@@ -9,6 +9,7 @@ license = "MIT"
 [dependencies]
 # Internal dependencies
 fo3-wallet = { path = "../fo3-wallet" }
+fo3-wallet-solana = { path = "../fo3-wallet-solana", optional = true }
 
 # Serialization
 serde = { workspace = true }
@@ -32,3 +33,9 @@ tracing-subscriber = { workspace = true }
 
 # Random number generation
 rand = { workspace = true }
+
+[features]
+default = ["ethereum", "bitcoin"]
+ethereum = []
+bitcoin = []
+solana = ["fo3-wallet-solana"]

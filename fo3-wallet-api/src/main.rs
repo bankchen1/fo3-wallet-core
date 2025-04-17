@@ -2,6 +2,9 @@
 //!
 //! This is the REST API server for the FO3 multi-chain wallet and DeFi SDK.
 
+#[cfg(feature = "solana")]
+mod solana;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -32,6 +35,7 @@ struct AppState {
 
 impl AppState {
     fn new() -> Self {
+        // Default to Ethereum mainnet
         let provider_config = ProviderConfig {
             provider_type: ProviderType::Http,
             url: "https://mainnet.infura.io/v3/your-api-key".to_string(),
@@ -39,9 +43,23 @@ impl AppState {
             timeout: Some(30),
         };
 
+        // For Solana, we would use a different URL
+        // This is handled in the Solana-specific code
+
         Self {
             wallets: std::sync::RwLock::new(std::collections::HashMap::new()),
             provider_config,
+        }
+    }
+
+    #[cfg(feature = "solana")]
+    fn get_solana_config(&self) -> ProviderConfig {
+        // For Solana, we use a different URL
+        ProviderConfig {
+            provider_type: ProviderType::Http,
+            url: "https://api.mainnet-beta.solana.com".to_string(),
+            api_key: None,
+            timeout: Some(30),
         }
     }
 
@@ -310,7 +328,7 @@ async fn main() -> anyhow::Result<()> {
     let state = Arc::new(AppState::new());
 
     // Build our application with routes
-    let app = Router::new()
+    let mut app = Router::new()
         .route("/health", get(health_check))
         // Wallet routes
         .route("/wallets", get(get_all_wallets))
@@ -325,8 +343,21 @@ async fn main() -> anyhow::Result<()> {
         .route("/defi/tokens/:key_type", get(get_supported_tokens))
         .route("/defi/swap", post(swap_tokens))
         .route("/defi/lending", post(execute_lending))
-        .route("/defi/staking", post(execute_staking))
-        .layer(Extension(state));
+        .route("/defi/staking", post(execute_staking));
+
+    // Add Solana-specific routes if the feature is enabled
+    #[cfg(feature = "solana")]
+    {
+        app = app
+            .route("/solana/token-balance", post(solana::get_token_balance))
+            .route("/solana/token-info/:token_mint", get(solana::get_token_info))
+            .route("/solana/transfer-tokens", post(solana::transfer_tokens))
+            .route("/solana/stake", post(solana::stake_sol))
+            .route("/solana/staking-info/:stake_account", get(solana::get_staking_info));
+    }
+
+    // Add state extension
+    let app = app.layer(Extension(state));
 
     // Run the server
     let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
