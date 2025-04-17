@@ -54,6 +54,7 @@ pub struct BitcoinProvider {
     /// Network
     network: Network,
     /// Secp256k1 context
+    #[allow(dead_code)]
     secp: Secp256k1<secp256k1::All>,
 }
 
@@ -81,6 +82,7 @@ impl BitcoinProvider {
     }
 
     /// Create a Bitcoin transaction
+    #[allow(dead_code)]
     fn create_transaction(&self, request: &TransactionRequest, inputs: Vec<BitcoinInput>) -> Result<BtcTransaction> {
         // Parse addresses
         let to_address = Address::from_str(&request.to)
@@ -125,10 +127,8 @@ impl BitcoinProvider {
         };
 
         // Calculate change
-        let change = total_input - value - fee;
-        if change < 0 {
-            return Err(Error::Transaction("Insufficient funds".to_string()));
-        }
+        let change = total_input.checked_sub(value + fee)
+            .ok_or_else(|| Error::Transaction("Insufficient funds".to_string()))?;
 
         // Create transaction outputs
         let mut tx_outputs = Vec::new();
@@ -147,7 +147,7 @@ impl BitcoinProvider {
                 .map_err(|e| Error::Transaction(format!("Invalid from address network: {}", e)))?;
 
             tx_outputs.push(TxOut {
-                value: Amount::from_sat(change as u64),
+                value: Amount::from_sat(change),
                 script_pubkey: from_address.script_pubkey(),
             });
         }

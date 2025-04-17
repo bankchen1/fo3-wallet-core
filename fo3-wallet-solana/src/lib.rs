@@ -8,11 +8,10 @@ use serde::{Serialize, Deserialize};
 
 use solana_sdk::{
     pubkey::Pubkey,
-    signature::{Keypair, Signature},
+    signature::Keypair,
     system_instruction,
     transaction::Transaction as SolTransaction,
     commitment_config::{CommitmentConfig, CommitmentLevel},
-    signer::Signer,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_transaction_status::UiTransactionStatusMeta;
@@ -20,7 +19,7 @@ use solana_transaction_status::UiTransactionStatusMeta;
 use fo3_wallet::error::{Error, Result};
 use fo3_wallet::crypto::keys::KeyType;
 use fo3_wallet::transaction::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
-use fo3_wallet::transaction::provider::{ProviderConfig, ProviderType};
+use fo3_wallet::transaction::provider::ProviderConfig;
 
 /// Solana transaction
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -41,6 +40,7 @@ pub struct SolanaProvider {
     #[allow(dead_code)]
     config: ProviderConfig,
     /// RPC client
+    #[allow(dead_code)]
     client: Arc<RpcClient>,
 }
 
@@ -62,6 +62,7 @@ impl SolanaProvider {
     }
 
     /// Create a Solana transaction
+    #[allow(dead_code)]
     fn create_transaction(&self, request: &TransactionRequest) -> Result<SolTransaction> {
         // Parse addresses
         let from_pubkey = Pubkey::from_str(&request.from)
@@ -93,6 +94,7 @@ impl SolanaProvider {
     }
 
     /// Convert a private key to a keypair
+    #[allow(dead_code)]
     fn private_key_to_keypair(&self, private_key: &str) -> Result<Keypair> {
         // Parse private key bytes
         let bytes = bs58::decode(private_key)
@@ -107,6 +109,7 @@ impl SolanaProvider {
     }
 
     /// Convert transaction status to our status
+    #[allow(dead_code)]
     fn convert_status(&self, status: Option<UiTransactionStatusMeta>) -> TransactionStatus {
         match status {
             Some(meta) => {
