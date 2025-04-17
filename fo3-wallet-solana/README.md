@@ -8,6 +8,7 @@ This crate provides Solana blockchain integration for the FO3 Wallet Core librar
 - **Transaction Handling**: Create, sign, and broadcast Solana transactions
 - **Token Support**: Transfer SPL tokens and manage token accounts
 - **Staking**: Stake SOL to validators and manage stake accounts
+- **DeFi**: Swap tokens on Raydium DEX
 
 ## Usage Examples
 
@@ -142,6 +143,42 @@ To run Solana-specific tests that require a network connection:
 ```
 RUST_LOG=info RUN_SOLANA_TESTS=1 cargo test
 ```
+
+### Raydium DEX Integration
+
+```rust
+// Get available token pairs on Raydium
+let pairs = provider.get_raydium_token_pairs().unwrap();
+
+// Get swap quote
+let sol_mint = "So11111111111111111111111111111111111111112";
+let usdc_mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+let amount_in = 1_000_000_000; // 1 SOL
+let slippage = 0.5; // 0.5%
+
+let quote = provider.get_raydium_swap_quote(
+    sol_mint,
+    usdc_mint,
+    amount_in,
+    slippage,
+).unwrap();
+
+// Execute swap
+let min_amount_out = quote.min_out_amount;
+let wallet_address = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
+let private_key = "your_private_key_here";
+
+let signature = provider.execute_raydium_swap(
+    sol_mint,
+    usdc_mint,
+    amount_in,
+    min_amount_out,
+    wallet_address,
+    private_key,
+).unwrap();
+```
+
+See [Raydium Documentation](docs/raydium.md) for more details.
 
 ## License
 

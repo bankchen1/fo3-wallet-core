@@ -5,6 +5,9 @@
 #[cfg(feature = "solana")]
 mod solana;
 
+#[cfg(feature = "solana")]
+mod raydium;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -353,7 +356,11 @@ async fn main() -> anyhow::Result<()> {
             .route("/solana/token-info/:token_mint", get(solana::get_token_info))
             .route("/solana/transfer-tokens", post(solana::transfer_tokens))
             .route("/solana/stake", post(solana::stake_sol))
-            .route("/solana/staking-info/:stake_account", get(solana::get_staking_info));
+            .route("/solana/staking-info/:stake_account", get(solana::get_staking_info))
+            // Raydium routes
+            .route("/defi/swap/pairs", get(raydium::get_token_pairs))
+            .route("/defi/swap/preview", post(raydium::get_swap_preview))
+            .route("/defi/swap/execute", post(raydium::execute_swap));
     }
 
     // Add state extension

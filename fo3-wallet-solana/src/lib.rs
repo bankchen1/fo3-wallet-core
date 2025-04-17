@@ -28,6 +28,13 @@
 //! ```
 //!
 //! See the README.md file for more examples.
+//!
+//! ## DeFi Features
+//!
+//! This crate also provides DeFi functionality for Solana, including:
+//!
+//! - **Raydium DEX**: Swap tokens on Raydium
+//! - **Token Management**: Get token information and balances
 
 use std::str::FromStr;
 use std::sync::Arc;
@@ -53,6 +60,14 @@ use fo3_wallet::error::{Error, Result};
 use fo3_wallet::crypto::keys::KeyType;
 use fo3_wallet::transaction::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
 use fo3_wallet::transaction::provider::ProviderConfig;
+
+// Raydium module
+mod raydium;
+pub use raydium::*;
+
+// Raydium tests
+#[cfg(test)]
+mod raydium_test;
 
 /// Represents a Solana transaction with basic fields.
 ///
@@ -171,6 +186,96 @@ pub struct SolanaProvider {
 }
 
 impl SolanaProvider {
+    /// Get Raydium client
+    pub fn get_raydium_client(&self) -> RaydiumClient {
+        let client = RpcClient::new_with_commitment(
+            self.config.url.clone(),
+            CommitmentConfig {
+                commitment: CommitmentLevel::Confirmed,
+            },
+        );
+
+        let mut raydium_client = RaydiumClient::new(client);
+        raydium_client.init_pools(load_known_pools());
+        raydium_client
+    }
+
+    /// Get supported token pairs on Raydium
+    pub fn get_raydium_token_pairs(&self) -> Result<Vec<(String, String)>> {
+        let raydium_client = self.get_raydium_client();
+        let pools = raydium_client.get_pools();
+
+        let pairs = pools.iter().map(|pool| {
+            (pool.token_a_symbol.clone(), pool.token_b_symbol.clone())
+        }).collect();
+
+        Ok(pairs)
+    }
+
+    /// Get Raydium swap quote
+    pub fn get_raydium_swap_quote(
+        &self,
+        token_in_mint: &str,
+        token_out_mint: &str,
+        amount_in: u64,
+        slippage: f64,
+    ) -> Result<SwapQuote> {
+        let raydium_client = self.get_raydium_client();
+        raydium_client.get_swap_quote(token_in_mint, token_out_mint, amount_in, slippage)
+    }
+
+    /// Execute Raydium swap
+    pub fn execute_raydium_swap(
+        &self,
+        token_in_mint: &str,
+        token_out_mint: &str,
+        amount_in: u64,
+        min_amount_out: u64,
+        wallet_address: &str,
+        private_key: &str,
+    ) -> Result<String> {
+        // Parse addresses
+        let wallet_pubkey = Pubkey::from_str(wallet_address)
+            .map_err(|e| Error::Transaction(format!("Invalid wallet address: {}", e)))?;
+
+        // Convert private key to keypair
+        let keypair = self.private_key_to_keypair(private_key)?;
+
+        // Get Raydium client
+        let raydium_client = self.get_raydium_client();
+
+        // Find pool
+        let pool = raydium_client.find_pool(token_in_mint, token_out_mint)
+            .ok_or_else(|| Error::DeFi(format!("Pool not found for {}-{}", token_in_mint, token_out_mint)))?;
+
+        // Determine swap direction
+        let direction = if token_in_mint == pool.token_a_mint {
+            SwapDirection::AtoB
+        } else {
+            SwapDirection::BtoA
+        };
+
+        // Create swap parameters
+        let params = SwapParams {
+            pool,
+            amount_in,
+            min_amount_out,
+            direction,
+            user_wallet: wallet_pubkey,
+        };
+
+        // Create and sign transaction
+        let transaction = raydium_client.create_swap_transaction(&params, &keypair)?;
+
+        // Serialize transaction
+        let serialized = bincode::serialize(&transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to serialize transaction: {}", e)))?;
+
+        // Broadcast transaction
+        let signature = self.broadcast_transaction(&serialized)?;
+
+        Ok(signature)
+    }
     /// Creates a new Solana provider with the given configuration.
     ///
     /// This method initializes a new RPC client with the URL and commitment level

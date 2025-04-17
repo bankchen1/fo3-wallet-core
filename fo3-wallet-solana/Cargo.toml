@@ -27,6 +27,9 @@ solana-program = { workspace = true }
 spl-token = { workspace = true }
 spl-associated-token-account = { workspace = true }
 
+# Raydium dependencies
+spl-token-swap = "3.0.0"
+
 # Encoding
 bs58 = { workspace = true }
 hex = { workspace = true }
