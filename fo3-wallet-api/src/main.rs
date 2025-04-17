@@ -11,6 +11,9 @@ mod raydium;
 #[cfg(feature = "solana")]
 mod nft;
 
+#[cfg(feature = "solana")]
+mod orca;
+
 use std::net::SocketAddr;
 use std::sync::Arc;
 
@@ -364,6 +367,10 @@ async fn main() -> anyhow::Result<()> {
             .route("/defi/swap/pairs", get(raydium::get_token_pairs))
             .route("/defi/swap/preview", post(raydium::get_swap_preview))
             .route("/defi/swap/execute", post(raydium::execute_swap))
+            // Orca routes
+            .route("/defi/swap/orca/pairs", get(orca::get_token_pairs))
+            .route("/defi/swap/orca/preview", post(orca::get_swap_preview))
+            .route("/defi/swap/orca/execute", post(orca::execute_swap))
             // NFT routes
             .route("/nft/:wallet_address", get(nft::get_nfts_by_owner))
             .route("/nft/:mint/metadata", get(nft::get_nft_metadata))
