@@ -30,3 +30,6 @@ spl-associated-token-account = { workspace = true }
 # Encoding
 bs58 = { workspace = true }
 hex = { workspace = true }
+
+[dev-dependencies]
+env_logger = "0.10"
