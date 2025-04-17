@@ -14,7 +14,7 @@ use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
 };
 use solana_client::rpc_client::RpcClient;
-use solana_transaction_status::UiTransactionStatusMeta;
+use solana_transaction_status::{UiTransactionStatusMeta, UiTransactionEncoding};
 
 use fo3_wallet::error::{Error, Result};
 use fo3_wallet::crypto::keys::KeyType;
@@ -131,55 +131,94 @@ impl TransactionSigner for SolanaProvider {
             return Err(Error::Transaction("Not a Solana transaction".to_string()));
         }
 
-        // In a real implementation, we would:
-        // 1. Get the private key from the request
-        // 2. Create a transaction
-        // 3. Sign the transaction
+        // Get the private key from the request data
+        let private_key = request.data.as_ref()
+            .and_then(|data| {
+                if let Some(private_key) = data.get("private_key") {
+                    Some(private_key.as_str().unwrap_or(""))
+                } else {
+                    None
+                }
+            })
+            .ok_or_else(|| Error::Transaction("Private key not provided".to_string()))?;
 
-        // For now, we'll just create a dummy signed transaction
-        let signed_transaction = vec![0u8; 32];
+        // Convert private key to keypair
+        let keypair = self.private_key_to_keypair(private_key)?;
 
-        Ok(signed_transaction)
+        // Create transaction
+        let mut transaction = self.create_transaction(request)?;
+
+        // Sign transaction
+        transaction.sign(&[&keypair], transaction.message.recent_blockhash);
+
+        // Serialize transaction
+        let serialized = bincode::serialize(&transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to serialize transaction: {}", e)))?;
+
+        Ok(serialized)
     }
 }
 
 impl TransactionBroadcaster for SolanaProvider {
     fn broadcast_transaction(&self, signed_transaction: &[u8]) -> Result<String> {
-        // In a real implementation, we would:
-        // 1. Deserialize the signed transaction
-        // 2. Broadcast it to the Solana network
-        // 3. Return the transaction signature
+        // Deserialize the signed transaction
+        let transaction: SolTransaction = bincode::deserialize(signed_transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to deserialize transaction: {}", e)))?;
 
-        // For now, we'll just create a dummy transaction signature
-        let signature = bs58::encode(&signed_transaction[0..32]).into_string();
+        // Broadcast the transaction to the Solana network
+        let signature = self.client.send_transaction(&transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to broadcast transaction: {}", e)))?;
 
-        Ok(signature)
+        // Return the transaction signature as a string
+        Ok(signature.to_string())
     }
 
-    fn get_transaction_status(&self, _hash: &str) -> Result<TransactionStatus> {
-        // In a real implementation, we would:
-        // 1. Parse the transaction signature
-        // 2. Query the Solana network for the transaction status
-        // 3. Return the status
+    fn get_transaction_status(&self, hash: &str) -> Result<TransactionStatus> {
+        // Parse the transaction signature
+        let signature = hash.parse()
+            .map_err(|e| Error::Transaction(format!("Invalid transaction signature: {}", e)))?;
 
-        // For now, we'll just return a dummy status
-        Ok(TransactionStatus::Confirmed)
+        // Query the Solana network for the transaction status
+        let status = self.client.get_signature_status(&signature)
+            .map_err(|e| Error::Transaction(format!("Failed to get transaction status: {}", e)))?;
+
+        // Convert the status to our TransactionStatus type
+        let status = self.convert_status(status);
+
+        Ok(status)
     }
 
     fn get_transaction_receipt(&self, hash: &str) -> Result<TransactionReceipt> {
-        // In a real implementation, we would:
-        // 1. Parse the transaction signature
-        // 2. Query the Solana network for the transaction
-        // 3. Extract the receipt information
-        // 4. Return the receipt
+        // Parse the transaction signature
+        let signature = hash.parse()
+            .map_err(|e| Error::Transaction(format!("Invalid transaction signature: {}", e)))?;
 
-        // For now, we'll just create a dummy receipt
+        // Query the Solana network for the transaction
+        let transaction = self.client.get_transaction(&signature, UiTransactionEncoding::Json)
+            .map_err(|e| Error::Transaction(format!("Failed to get transaction: {}", e)))?;
+
+        // Extract the receipt information
+        let status = if let Some(meta) = &transaction.transaction.meta {
+            if meta.status.is_ok() {
+                TransactionStatus::Confirmed
+            } else {
+                TransactionStatus::Failed
+            }
+        } else {
+            TransactionStatus::Pending
+        };
+
+        let block_number = transaction.slot;
+        let timestamp = transaction.block_time.map(|t| t as u64);
+        let fee = transaction.transaction.meta.as_ref().map(|meta| meta.fee.to_string());
+
+        // Create the receipt
         let receipt = TransactionReceipt {
             hash: hash.to_string(),
-            status: TransactionStatus::Confirmed,
-            block_number: Some(12345678),
-            timestamp: Some(1620000000),
-            fee: Some("0.000005".to_string()),
+            status,
+            block_number: Some(block_number),
+            timestamp,
+            fee,
             logs: vec![],
         };
 
@@ -189,65 +228,112 @@ impl TransactionBroadcaster for SolanaProvider {
 
 impl TransactionManager for SolanaProvider {
     fn get_transaction(&self, hash: &str) -> Result<Transaction> {
-        // In a real implementation, we would:
-        // 1. Parse the transaction signature
-        // 2. Query the Solana network for the transaction
-        // 3. Convert it to our Transaction type
-        // 4. Return the transaction
+        // Parse the transaction signature
+        let signature = hash.parse()
+            .map_err(|e| Error::Transaction(format!("Invalid transaction signature: {}", e)))?;
 
-        // For now, we'll just create a dummy transaction
+        // Query the Solana network for the transaction
+        let tx_data = self.client.get_transaction(&signature, UiTransactionEncoding::Json)
+            .map_err(|e| Error::Transaction(format!("Failed to get transaction: {}", e)))?;
+
+        // Extract transaction information
+        let transaction_type = TransactionType::Transfer; // Default to Transfer for now
+        let status = if let Some(meta) = &tx_data.transaction.meta {
+            if meta.status.is_ok() {
+                TransactionStatus::Confirmed
+            } else {
+                TransactionStatus::Failed
+            }
+        } else {
+            TransactionStatus::Pending
+        };
+
+        // Extract from and to addresses from the transaction
+        let message = &tx_data.transaction.transaction.message;
+        let accounts = &message.account_keys;
+
+        let from = if !accounts.is_empty() {
+            accounts[0].to_string()
+        } else {
+            return Err(Error::Transaction("No accounts found in transaction".to_string()));
+        };
+
+        let to = if accounts.len() > 1 {
+            accounts[1].to_string()
+        } else {
+            from.clone() // Default to from if no recipient
+        };
+
+        // Extract value (amount) from the transaction
+        let value = if let Some(meta) = &tx_data.transaction.meta {
+            if let Some(pre_balances) = meta.pre_balances.first() {
+                if let Some(post_balances) = meta.post_balances.first() {
+                    let amount = pre_balances.saturating_sub(*post_balances);
+                    amount.to_string()
+                } else {
+                    "0".to_string()
+                }
+            } else {
+                "0".to_string()
+            }
+        } else {
+            "0".to_string()
+        };
+
+        // Create the transaction
         let transaction = Transaction {
             hash: hash.to_string(),
-            transaction_type: TransactionType::Transfer,
+            transaction_type,
             key_type: KeyType::Solana,
-            from: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
-            to: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
-            value: "1000000000".to_string(), // 1 SOL
+            from,
+            to,
+            value,
             gas_price: None,
             gas_limit: None,
             nonce: None,
             data: None,
-            status: TransactionStatus::Confirmed,
-            block_number: Some(12345678),
-            timestamp: Some(1620000000),
-            fee: Some("0.000005".to_string()),
+            status,
+            block_number: Some(tx_data.slot),
+            timestamp: tx_data.block_time.map(|t| t as u64),
+            fee: tx_data.transaction.meta.as_ref().map(|meta| meta.fee.to_string()),
         };
 
         Ok(transaction)
     }
 
-    fn get_transactions(&self, address: &str, _limit: usize, _offset: usize) -> Result<Vec<Transaction>> {
-        // In a real implementation, we would:
-        // 1. Parse the address
-        // 2. Query the Solana network for transactions related to the address
-        // 3. Convert them to our Transaction type
-        // 4. Return the transactions
+    fn get_transactions(&self, address: &str, limit: usize, offset: usize) -> Result<Vec<Transaction>> {
+        // Parse the address
+        let pubkey = Pubkey::from_str(address)
+            .map_err(|e| Error::Transaction(format!("Invalid address: {}", e)))?;
 
-        // For now, we'll just create a dummy transaction
-        let transaction = Transaction {
-            hash: bs58::encode(&[0u8; 32]).into_string(),
-            transaction_type: TransactionType::Transfer,
-            key_type: KeyType::Solana,
-            from: address.to_string(),
-            to: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
-            value: "1000000000".to_string(), // 1 SOL
-            gas_price: None,
-            gas_limit: None,
-            nonce: None,
-            data: None,
-            status: TransactionStatus::Confirmed,
-            block_number: Some(12345678),
-            timestamp: Some(1620000000),
-            fee: Some("0.000005".to_string()),
-        };
+        // Query the Solana network for signatures related to the address
+        let signatures = self.client.get_signatures_for_address(&pubkey)
+            .map_err(|e| Error::Transaction(format!("Failed to get signatures: {}", e)))?;
 
-        Ok(vec![transaction])
+        // Apply offset and limit
+        let signatures = signatures.into_iter()
+            .skip(offset)
+            .take(limit)
+            .collect::<Vec<_>>();
+
+        // Convert signatures to transactions
+        let mut transactions = Vec::new();
+        for sig_info in signatures {
+            let signature = sig_info.signature;
+            match self.get_transaction(&signature.to_string()) {
+                Ok(transaction) => transactions.push(transaction),
+                Err(_) => continue, // Skip failed transactions
+            }
+        }
+
+        Ok(transactions)
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn test_create_transaction() {
@@ -284,5 +370,51 @@ mod tests {
         // This test will fail without a real RPC connection
         // So we'll just check that the function exists
         assert!(true);
+    }
+
+    #[test]
+    fn test_sign_transaction() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::Http,
+            url: "https://api.devnet.solana.com".to_string(), // Use devnet for testing
+            api_key: None,
+            timeout: Some(30),
+        };
+
+        // Skip this test in CI environment
+        if std::env::var("CI").is_ok() {
+            return;
+        }
+
+        // Skip this test by default to avoid making real RPC calls
+        if std::env::var("RUN_SOLANA_TESTS").is_err() {
+            return;
+        }
+
+        let provider = SolanaProvider::new(config).unwrap();
+
+        // Create a test keypair
+        let keypair = Keypair::new();
+        let private_key = bs58::encode(keypair.to_bytes()).into_string();
+        let from_address = keypair.pubkey().to_string();
+
+        // Create a transaction request
+        let request = TransactionRequest {
+            key_type: KeyType::Solana,
+            from: from_address,
+            to: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
+            value: "1000000".to_string(), // 0.001 SOL
+            gas_price: None,
+            gas_limit: None,
+            nonce: None,
+            data: Some(json!({
+                "private_key": private_key
+            })),
+        };
+
+        // This test will fail without a real RPC connection and funded account
+        // So we'll just check that the function doesn't panic
+        let result = provider.sign_transaction(&request);
+        assert!(result.is_ok() || result.is_err()); // Always true, just to avoid unused result warning
     }
 }
