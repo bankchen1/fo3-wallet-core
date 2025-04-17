@@ -6,6 +6,7 @@
 use std::str::FromStr;
 use serde::{Serialize, Deserialize};
 use solana_client::rpc_client::RpcClient;
+use solana_client::rpc_request::TokenAccountsFilter;
 use solana_sdk::{
     pubkey::Pubkey,
     program_pack::Pack,
@@ -13,9 +14,7 @@ use solana_sdk::{
     transaction::Transaction,
     signer::{Signer, keypair::Keypair},
     system_instruction,
-    rent::Rent,
-    native_token::LAMPORTS_PER_SOL,
-    hash::Hash,
+
 };
 use spl_token::{state::Account as TokenAccount, instruction as token_instruction};
 use spl_associated_token_account::{get_associated_token_address, instruction as associated_token_instruction};
@@ -294,15 +293,23 @@ impl NftClient {
         // Get token accounts by owner
         let token_accounts = self.client.get_token_accounts_by_owner(
             &owner_pubkey,
-            solana_client::rpc_config::TokenAccountsFilter::ProgramId(spl_token::id()),
+            TokenAccountsFilter::ProgramId(spl_token::id()),
         ).map_err(|e| Error::Transaction(format!("Failed to get token accounts: {}", e)))?;
 
         let mut nfts = Vec::new();
 
         // Filter for NFTs (tokens with amount = 1)
         for account in token_accounts {
-            let data = account.account.data.clone();
-            let token_account = TokenAccount::unpack(&data)
+            // Parse pubkey
+            let pubkey = Pubkey::from_str(&account.pubkey)
+                .map_err(|e| Error::Transaction(format!("Invalid token account pubkey: {}", e)))?;
+
+            // Get account data
+            let account_data = self.client.get_account(&pubkey)
+                .map_err(|e| Error::Transaction(format!("Failed to get token account: {}", e)))?;
+
+            // Parse token account
+            let token_account = TokenAccount::unpack(&account_data.data)
                 .map_err(|e| Error::Transaction(format!("Failed to parse token account: {}", e)))?;
 
             // Check if this is an NFT (amount = 1)
@@ -420,7 +427,7 @@ impl NftClient {
     }
 
     /// Fetch external metadata from URI
-    async fn fetch_external_metadata(&self, uri: &str) -> Result<ExternalMetadata> {
+    async fn fetch_external_metadata(&self, _uri: &str) -> Result<ExternalMetadata> {
         // This would normally be an async HTTP request
         // For simplicity, we'll just return an error
         // In a real implementation, you would use reqwest or another HTTP client
@@ -548,7 +555,7 @@ impl NftClient {
             .map_err(|e| Error::Transaction(format!("Failed to get recent blockhash: {}", e)))?;
 
         // Get rent-exempt minimum balance for mint account
-        let rent = self.client.get_minimum_rent_for_exempt_size(spl_token::state::Mint::LEN)
+        let rent = self.client.get_minimum_balance_for_rent_exemption(spl_token::state::Mint::LEN)
             .map_err(|e| Error::Transaction(format!("Failed to get rent exemption: {}", e)))?;
 
         let mut instructions = Vec::new();

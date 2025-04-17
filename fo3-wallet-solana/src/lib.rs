@@ -47,7 +47,7 @@ use solana_sdk::{
     system_instruction,
     transaction::Transaction as SolTransaction,
     commitment_config::{CommitmentConfig, CommitmentLevel},
-    instruction::Instruction,
+
     program_pack::Pack,
     stake::{self, state::StakeStateV2, instruction as stake_instruction},
     clock::Epoch,
@@ -64,7 +64,10 @@ use fo3_wallet::transaction::provider::ProviderConfig;
 
 // Raydium module
 mod raydium;
-pub use raydium::*;
+pub use raydium::{RaydiumClient, load_known_pools as raydium_load_known_pools};
+pub use raydium::SwapDirection as RaydiumSwapDirection;
+pub use raydium::SwapParams as RaydiumSwapParams;
+pub use raydium::SwapQuote as RaydiumSwapQuote;
 
 // Raydium tests
 #[cfg(test)]
@@ -80,7 +83,10 @@ mod nft_test;
 
 // Orca module
 mod orca;
-pub use orca::*;
+pub use orca::{OrcaClient, load_known_pools as orca_load_known_pools};
+pub use orca::SwapDirection as OrcaSwapDirection;
+pub use orca::SwapParams as OrcaSwapParams;
+pub use orca::SwapQuote as OrcaSwapQuote;
 
 // Orca tests
 #[cfg(test)]
@@ -271,7 +277,7 @@ impl SolanaProvider {
         );
 
         let mut raydium_client = RaydiumClient::new(client);
-        raydium_client.init_pools(load_known_pools());
+        raydium_client.init_pools(raydium_load_known_pools());
         raydium_client
     }
 
@@ -285,7 +291,7 @@ impl SolanaProvider {
         );
 
         let mut orca_client = OrcaClient::new(client);
-        orca_client.init_pools(orca::load_known_pools());
+        orca_client.init_pools(orca_load_known_pools());
         orca_client
     }
 
@@ -308,7 +314,7 @@ impl SolanaProvider {
         token_out_mint: &str,
         amount_in: u64,
         slippage: f64,
-    ) -> Result<SwapQuote> {
+    ) -> Result<RaydiumSwapQuote> {
         let raydium_client = self.get_raydium_client();
         raydium_client.get_swap_quote(token_in_mint, token_out_mint, amount_in, slippage)
     }
@@ -339,13 +345,13 @@ impl SolanaProvider {
 
         // Determine swap direction
         let direction = if token_in_mint == pool.token_a_mint {
-            SwapDirection::AtoB
+            RaydiumSwapDirection::AtoB
         } else {
-            SwapDirection::BtoA
+            RaydiumSwapDirection::BtoA
         };
 
         // Create swap parameters
-        let params = SwapParams {
+        let params = RaydiumSwapParams {
             pool,
             amount_in,
             min_amount_out,
@@ -387,7 +393,7 @@ impl SolanaProvider {
         token_out_mint: &str,
         amount_in: u64,
         slippage: f64,
-    ) -> Result<SwapQuote> {
+    ) -> Result<OrcaSwapQuote> {
         let orca_client = self.get_orca_client();
 
         orca_client.get_swap_quote(token_in_mint, token_out_mint, amount_in, slippage)
@@ -419,13 +425,13 @@ impl SolanaProvider {
 
         // Determine swap direction
         let direction = if token_in_mint == pool.token_a_mint {
-            orca::SwapDirection::AtoB
+            OrcaSwapDirection::AtoB
         } else {
-            orca::SwapDirection::BtoA
+            OrcaSwapDirection::BtoA
         };
 
         // Create swap parameters
-        let params = orca::SwapParams {
+        let params = OrcaSwapParams {
             pool,
             amount_in,
             min_amount_out,
@@ -523,7 +529,7 @@ impl SolanaProvider {
 
     /// Create a Solana token transfer transaction
     #[allow(dead_code)]
-    fn create_token_transfer_transaction(&self, params: &TokenTransferParams, payer: &Pubkey) -> Result<SolTransaction> {
+    pub fn create_token_transfer_transaction(&self, params: &TokenTransferParams, payer: &Pubkey) -> Result<SolTransaction> {
         // Parse addresses
         let from_pubkey = Pubkey::from_str(&params.from)
             .map_err(|e| Error::Transaction(format!("Invalid from address: {}", e)))?;
@@ -584,7 +590,7 @@ impl SolanaProvider {
 
     /// Convert a private key to a keypair
     #[allow(dead_code)]
-    fn private_key_to_keypair(&self, private_key: &str) -> Result<Keypair> {
+    pub fn private_key_to_keypair(&self, private_key: &str) -> Result<Keypair> {
         // Parse private key bytes
         let bytes = bs58::decode(private_key)
             .into_vec()

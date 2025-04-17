@@ -4,12 +4,12 @@
 
 use axum::{
     extract::{Extension, Json},
-    http::StatusCode,
+
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use fo3_wallet_solana::{SolanaProvider, SwapQuote};
+use fo3_wallet_solana::{SolanaProvider, OrcaSwapQuote};
 
 use crate::{ApiError, AppState, Result};
 
@@ -95,7 +95,7 @@ pub async fn get_swap_preview(
         .map_err(|e| ApiError::BadRequest(format!("Invalid amount: {}", e)))?;
 
     // Get quote
-    let quote = provider.get_orca_swap_quote(
+    let quote: OrcaSwapQuote = provider.get_orca_swap_quote(
         &request.token_in_mint,
         &request.token_out_mint,
         amount_in,

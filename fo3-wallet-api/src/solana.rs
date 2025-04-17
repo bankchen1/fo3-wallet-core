@@ -4,15 +4,18 @@
 
 use axum::{
     extract::{Extension, Json, Path},
-    http::StatusCode,
+
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 
-use fo3_wallet::transaction::provider::ProviderConfig;
+use fo3_wallet::transaction::{provider::ProviderConfig, TransactionBroadcaster};
 use fo3_wallet_solana::{
     SolanaProvider, TokenInfo, TokenTransferParams, StakingParams, StakingInfo,
 };
+use solana_sdk::signature::{Keypair, Signer};
+use bs58;
+use bincode;
 
 use crate::{ApiError, AppState, Result};
 
@@ -127,15 +130,24 @@ pub async fn transfer_tokens(
     };
 
     // Convert private key to keypair
-    let keypair = provider.private_key_to_keypair(&request.private_key)
+    let keypair_bytes = bs58::decode(&request.private_key)
+        .into_vec()
         .map_err(|e| ApiError::BadRequest(format!("Invalid private key: {}", e)))?;
+
+    let keypair = Keypair::from_bytes(&keypair_bytes)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid keypair: {}", e)))?;
+
+    // Get provider
+    let provider = SolanaProvider::new(state.get_solana_config())
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     // Create token transfer transaction
     let transaction = provider.create_token_transfer_transaction(&params, &keypair.pubkey())
         .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     // Sign transaction
-    let signed_transaction = transaction.sign(&[&keypair], transaction.message.recent_blockhash);
+    let mut transaction_clone = transaction.clone();
+    let signed_transaction = transaction_clone.sign(&[&keypair], transaction.message.recent_blockhash);
 
     // Serialize transaction
     let serialized = bincode::serialize(&signed_transaction)
@@ -195,19 +207,28 @@ pub async fn stake_sol(
     };
 
     // Convert private key to keypair
-    let keypair = provider.private_key_to_keypair(&request.private_key)
+    let keypair_bytes = bs58::decode(&request.private_key)
+        .into_vec()
         .map_err(|e| ApiError::BadRequest(format!("Invalid private key: {}", e)))?;
 
+    let keypair = Keypair::from_bytes(&keypair_bytes)
+        .map_err(|e| ApiError::BadRequest(format!("Invalid keypair: {}", e)))?;
+
     // Create stake account keypair
-    let stake_account = solana_sdk::signature::Keypair::new();
+    let stake_account = Keypair::new();
     let stake_account_pubkey = stake_account.pubkey();
+
+    // Get provider
+    let provider = SolanaProvider::new(state.get_solana_config())
+        .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     // Create staking transaction
     let transaction = provider.create_stake_transaction(&params, &keypair.pubkey())
         .map_err(|e| ApiError::InternalServerError(e.to_string()))?;
 
     // Sign transaction
-    let signed_transaction = transaction.sign(&[&keypair, &stake_account], transaction.message.recent_blockhash);
+    let mut transaction_clone = transaction.clone();
+    let signed_transaction = transaction_clone.sign(&[&keypair, &stake_account], transaction.message.recent_blockhash);
 
     // Serialize transaction
     let serialized = bincode::serialize(&signed_transaction)

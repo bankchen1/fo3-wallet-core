@@ -11,11 +11,11 @@ use solana_sdk::{
     instruction::Instruction,
     transaction::Transaction,
     signer::{Signer, keypair::Keypair},
-    system_instruction,
+
 };
 use solana_client::rpc_client::RpcClient;
 use solana_program::program_pack::Pack;
-use spl_token::instruction as token_instruction;
+
 use spl_token_swap::instruction as swap_instruction;
 use spl_associated_token_account::get_associated_token_address;
 
@@ -122,7 +122,7 @@ impl RaydiumClient {
         for pool in pools {
             let key = format!("{}-{}", pool.token_a_mint, pool.token_b_mint);
             self.pools.insert(key, pool.clone());
-            
+
             // Also add the reverse direction
             let reverse_key = format!("{}-{}", pool.token_b_mint, pool.token_a_mint);
             self.pools.insert(reverse_key, pool);
@@ -162,21 +162,21 @@ impl RaydiumClient {
         // Get token accounts to check balances
         let token_a_account = Pubkey::from_str(&pool.token_a_account)
             .map_err(|e| Error::DeFi(format!("Invalid token A account: {}", e)))?;
-        
+
         let token_b_account = Pubkey::from_str(&pool.token_b_account)
             .map_err(|e| Error::DeFi(format!("Invalid token B account: {}", e)))?;
 
         // Get account info to check balances
         let token_a_info = self.client.get_account(&token_a_account)
             .map_err(|e| Error::DeFi(format!("Failed to get token A account: {}", e)))?;
-        
+
         let token_b_info = self.client.get_account(&token_b_account)
             .map_err(|e| Error::DeFi(format!("Failed to get token B account: {}", e)))?;
 
         // Parse token accounts
         let token_a_data = spl_token::state::Account::unpack(&token_a_info.data)
             .map_err(|e| Error::DeFi(format!("Failed to parse token A account: {}", e)))?;
-        
+
         let token_b_data = spl_token::state::Account::unpack(&token_b_info.data)
             .map_err(|e| Error::DeFi(format!("Failed to parse token B account: {}", e)))?;
 
@@ -209,21 +209,21 @@ impl RaydiumClient {
         // We apply a 0.3% fee by reducing the input amount by 0.3%
         let fee_numerator = 3;
         let fee_denominator = 1000;
-        
+
         let amount_in_with_fee = amount_in
             .checked_mul(fee_denominator - fee_numerator)
             .ok_or_else(|| Error::DeFi("Overflow in fee calculation".to_string()))?
             .checked_div(fee_denominator)
             .ok_or_else(|| Error::DeFi("Division by zero in fee calculation".to_string()))?;
-        
+
         let numerator = out_reserve
             .checked_mul(amount_in_with_fee)
             .ok_or_else(|| Error::DeFi("Overflow in output calculation".to_string()))?;
-        
+
         let denominator = in_reserve
             .checked_add(amount_in_with_fee)
             .ok_or_else(|| Error::DeFi("Overflow in reserve calculation".to_string()))?;
-        
+
         let out_amount = numerator
             .checked_div(denominator)
             .ok_or_else(|| Error::DeFi("Division by zero in output calculation".to_string()))?;
@@ -399,7 +399,7 @@ impl RaydiumClient {
 pub fn load_known_pools() -> Vec<RaydiumPool> {
     // This is a simplified implementation with hardcoded pools
     // In a real implementation, we would load this from a JSON file or API
-    
+
     vec![
         // SOL-USDC pool
         RaydiumPool {

@@ -34,8 +34,13 @@ tracing-subscriber = { workspace = true }
 # Random number generation
 rand = { workspace = true }
 
+# Solana dependencies
+solana-sdk = { workspace = true, optional = true }
+bincode = { workspace = true, optional = true }
+bs58 = { workspace = true, optional = true }
+
 [features]
 default = ["ethereum", "bitcoin"]
 ethereum = []
 bitcoin = []
-solana = ["fo3-wallet-solana"]
+solana = ["fo3-wallet-solana", "solana-sdk", "bincode", "bs58"]
