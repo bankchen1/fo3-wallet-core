@@ -81,6 +81,24 @@ GET /nft/:mint/metadata
 
 Returns metadata for the specified NFT mint address.
 
+### Transfer NFT
+
+```
+POST /nft/transfer
+```
+
+Request body:
+```json
+{
+  "from": "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b",
+  "to": "83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri",
+  "mint": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+  "private_key": "your_private_key_here"
+}
+```
+
+Transfers an NFT from one wallet to another and returns the transaction signature.
+
 ## Implementation Details
 
 The NFT support is implemented using the following components:
@@ -116,6 +134,25 @@ The URI in the on-chain metadata usually points to a JSON file with additional m
 
 The implementation attempts to fetch this external metadata if the URI is an HTTPS URL.
 
+### Transfer an NFT
+
+```rust
+// Transfer an NFT
+let from_wallet = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
+let to_wallet = "83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri";
+let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
+let private_key = "your_private_key_here";
+
+let signature = provider.transfer_nft(
+    from_wallet,
+    to_wallet,
+    mint,
+    private_key,
+).await.unwrap();
+
+println!("NFT transferred: {}", signature);
+```
+
 ## Known Limitations
 
 - The current implementation does not fully implement external metadata fetching. In a production environment, this should be implemented using an HTTP client like reqwest.
@@ -127,5 +164,4 @@ The implementation attempts to fetch this external metadata if the URI is an HTT
 - Implement external metadata fetching
 - Add support for NFT collections
 - Add support for NFT verifications
-- Add support for NFT transfers
 - Add support for NFT minting

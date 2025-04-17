@@ -9,8 +9,13 @@ use solana_client::rpc_client::RpcClient;
 use solana_sdk::{
     pubkey::Pubkey,
     program_pack::Pack,
+    instruction::Instruction,
+    transaction::Transaction,
+    signer::{Signer, keypair::Keypair},
+    system_instruction,
 };
-use spl_token::state::Account as TokenAccount;
+use spl_token::{state::Account as TokenAccount, instruction as token_instruction};
+use spl_associated_token_account::{get_associated_token_address, instruction as associated_token_instruction};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use fo3_wallet::error::{Error, Result};
@@ -384,5 +389,101 @@ impl NftClient {
         // For simplicity, we'll just return an error
         // In a real implementation, you would use reqwest or another HTTP client
         Err(Error::Transaction("External metadata fetching not implemented".to_string()))
+    }
+
+    /// Transfer an NFT from one wallet to another
+    pub async fn transfer_nft(
+        &self,
+        from_wallet: &str,
+        to_wallet: &str,
+        mint: &str,
+        keypair: &Keypair,
+    ) -> Result<String> {
+        // Parse addresses
+        let from_pubkey = Pubkey::from_str(from_wallet)
+            .map_err(|e| Error::Transaction(format!("Invalid from address: {}", e)))?;
+
+        let to_pubkey = Pubkey::from_str(to_wallet)
+            .map_err(|e| Error::Transaction(format!("Invalid to address: {}", e)))?;
+
+        let mint_pubkey = Pubkey::from_str(mint)
+            .map_err(|e| Error::Transaction(format!("Invalid mint address: {}", e)))?;
+
+        // Verify that the keypair matches the from_wallet
+        if keypair.pubkey() != from_pubkey {
+            return Err(Error::Transaction("Keypair does not match from wallet address".to_string()));
+        }
+
+        // Get source token account
+        let source_token_account = get_associated_token_address(&from_pubkey, &mint_pubkey);
+
+        // Check if source token account exists and has the NFT
+        let source_account = match self.client.get_account(&source_token_account) {
+            Ok(account) => account,
+            Err(e) => return Err(Error::Transaction(format!("Failed to get source token account: {}", e))),
+        };
+
+        // Parse token account data
+        let token_account_data = TokenAccount::unpack(&source_account.data)
+            .map_err(|e| Error::Transaction(format!("Failed to parse source token account: {}", e)))?;
+
+        // Verify that the token account has the NFT
+        if token_account_data.amount != 1 {
+            return Err(Error::Transaction("Source account does not have the NFT".to_string()));
+        }
+
+        // Get destination token account
+        let destination_token_account = get_associated_token_address(&to_pubkey, &mint_pubkey);
+
+        // Check if destination token account exists
+        let destination_account_exists = self.client.get_account_with_commitment(&destination_token_account, self.client.commitment())
+            .map_err(|e| Error::Transaction(format!("Failed to check destination account: {}", e)))?;
+
+        let mut instructions = Vec::new();
+
+        // If destination token account doesn't exist, create it
+        if destination_account_exists.value.is_none() {
+            let create_account_ix = associated_token_instruction::create_associated_token_account(
+                &from_pubkey,
+                &to_pubkey,
+                &mint_pubkey,
+                &spl_token::id(),
+            );
+            instructions.push(create_account_ix);
+        }
+
+        // Create transfer instruction
+        let transfer_ix = token_instruction::transfer(
+            &spl_token::id(),
+            &source_token_account,
+            &destination_token_account,
+            &from_pubkey,
+            &[&from_pubkey],
+            1, // NFTs have amount 1
+        ).map_err(|e| Error::Transaction(format!("Failed to create transfer instruction: {}", e)))?;
+
+        instructions.push(transfer_ix);
+
+        // Get recent blockhash
+        let recent_blockhash = self.client.get_latest_blockhash()
+            .map_err(|e| Error::Transaction(format!("Failed to get recent blockhash: {}", e)))?;
+
+        // Create transaction
+        let mut transaction = Transaction::new_with_payer(
+            &instructions,
+            Some(&from_pubkey),
+        );
+
+        // Set recent blockhash
+        transaction.message.recent_blockhash = recent_blockhash;
+
+        // Sign transaction
+        transaction.sign(&[keypair], recent_blockhash);
+
+        // Send transaction
+        let signature = self.client.send_and_confirm_transaction(&transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to send transaction: {}", e)))?;
+
+        Ok(signature.to_string())
     }
 }

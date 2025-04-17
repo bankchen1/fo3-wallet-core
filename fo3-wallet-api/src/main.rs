@@ -366,7 +366,8 @@ async fn main() -> anyhow::Result<()> {
             .route("/defi/swap/execute", post(raydium::execute_swap))
             // NFT routes
             .route("/nft/:wallet_address", get(nft::get_nfts_by_owner))
-            .route("/nft/:mint/metadata", get(nft::get_nft_metadata));
+            .route("/nft/:mint/metadata", get(nft::get_nft_metadata))
+            .route("/nft/transfer", post(nft::transfer_nft));
     }
 
     // Add state extension

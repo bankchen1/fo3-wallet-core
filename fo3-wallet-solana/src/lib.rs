@@ -218,6 +218,24 @@ impl SolanaProvider {
         let nft_client = self.get_nft_client();
         nft_client.get_nft_metadata(mint).await
     }
+
+    /// Transfer an NFT from one wallet to another
+    pub async fn transfer_nft(
+        &self,
+        from_wallet: &str,
+        to_wallet: &str,
+        mint: &str,
+        private_key: &str,
+    ) -> Result<String> {
+        // Convert private key to keypair
+        let keypair = self.private_key_to_keypair(private_key)?;
+
+        // Get NFT client
+        let nft_client = self.get_nft_client();
+
+        // Transfer NFT
+        nft_client.transfer_nft(from_wallet, to_wallet, mint, &keypair).await
+    }
     /// Get Raydium client
     pub fn get_raydium_client(&self) -> RaydiumClient {
         let client = RpcClient::new_with_commitment(

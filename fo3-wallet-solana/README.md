@@ -191,6 +191,12 @@ let nfts = provider.get_nfts_by_owner(wallet_address).await.unwrap();
 // Get NFT metadata
 let mint = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 let metadata = provider.get_nft_metadata(mint).await.unwrap();
+
+// Transfer an NFT
+let from_wallet = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
+let to_wallet = "83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri";
+let private_key = "your_private_key_here";
+let signature = provider.transfer_nft(from_wallet, to_wallet, mint, private_key).await.unwrap();
 ```
 
 See [NFT Documentation](docs/nft.md) for more details.
