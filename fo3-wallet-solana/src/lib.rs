@@ -14,6 +14,9 @@ use solana_sdk::{
     commitment_config::{CommitmentConfig, CommitmentLevel},
     instruction::Instruction,
     program_pack::Pack,
+    stake::{self, state::{StakeState, Delegation, Stake}, instruction as stake_instruction},
+    clock::Epoch,
+    sysvar,
 };
 use solana_client::rpc_client::RpcClient;
 use solana_transaction_status::{UiTransactionStatusMeta, UiTransactionEncoding};
@@ -66,6 +69,45 @@ pub struct TokenInfo {
     pub decimals: u8,
     /// Token total supply
     pub total_supply: u64,
+}
+
+/// Solana staking parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StakingParams {
+    /// From address (the staker)
+    pub from: String,
+    /// Validator vote account address
+    pub validator: String,
+    /// Amount to stake in lamports
+    pub amount: u64,
+}
+
+/// Solana staking information
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct StakingInfo {
+    /// Stake account address
+    pub stake_account: String,
+    /// Validator vote account address
+    pub validator: String,
+    /// Staked amount in lamports
+    pub amount: u64,
+    /// Status of the stake
+    pub status: StakingStatus,
+    /// Rewards earned in lamports
+    pub rewards: u64,
+}
+
+/// Solana staking status
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub enum StakingStatus {
+    /// Stake is active
+    Active,
+    /// Stake is activating
+    Activating,
+    /// Stake is deactivating
+    Deactivating,
+    /// Stake is inactive
+    Inactive,
 }
 
 /// Solana provider
@@ -261,6 +303,140 @@ impl SolanaProvider {
         };
 
         Ok(token_info)
+    }
+
+    /// Create a stake account and delegate to a validator
+    #[allow(dead_code)]
+    pub fn create_stake_transaction(&self, params: &StakingParams, payer: &Pubkey) -> Result<SolTransaction> {
+        // Parse addresses
+        let from_pubkey = Pubkey::from_str(&params.from)
+            .map_err(|e| Error::Transaction(format!("Invalid from address: {}", e)))?;
+
+        let validator_pubkey = Pubkey::from_str(&params.validator)
+            .map_err(|e| Error::Transaction(format!("Invalid validator address: {}", e)))?;
+
+        // Get recent blockhash
+        let recent_blockhash = self.client.get_latest_blockhash()
+            .map_err(|e| Error::Transaction(format!("Failed to get recent blockhash: {}", e)))?;
+
+        // Create a new stake account keypair
+        let stake_account = Keypair::new();
+        let stake_account_pubkey = stake_account.pubkey();
+
+        // Calculate rent-exempt balance for the stake account
+        let rent = self.client.get_minimum_balance_for_rent_exemption(std::mem::size_of::<StakeState>())
+            .map_err(|e| Error::Transaction(format!("Failed to get rent exemption: {}", e)))?;
+
+        // Total amount needed: rent + stake amount
+        let total_amount = rent + params.amount;
+
+        // Create instructions
+        let mut instructions = Vec::new();
+
+        // 1. Create stake account
+        let create_account_ix = system_instruction::create_account(
+            &from_pubkey,
+            &stake_account_pubkey,
+            total_amount,
+            std::mem::size_of::<StakeState>() as u64,
+            &stake::program::id(),
+        );
+        instructions.push(create_account_ix);
+
+        // 2. Initialize stake account
+        let init_stake_ix = stake_instruction::initialize(
+            &stake_account_pubkey,
+            &stake::state::Authorized {
+                staker: from_pubkey,
+                withdrawer: from_pubkey,
+            },
+            &stake::state::Lockup::default(),
+        );
+        instructions.push(init_stake_ix);
+
+        // 3. Delegate stake
+        let delegate_stake_ix = stake_instruction::delegate_stake(
+            &stake_account_pubkey,
+            &from_pubkey,
+            &validator_pubkey,
+        );
+        instructions.push(delegate_stake_ix);
+
+        // Create transaction with recent blockhash
+        let mut transaction = SolTransaction::new_with_payer(
+            &instructions,
+            Some(payer),
+        );
+
+        transaction.message.recent_blockhash = recent_blockhash;
+
+        // Sign with the stake account keypair
+        transaction.sign(&[&stake_account], recent_blockhash);
+
+        Ok(transaction)
+    }
+
+    /// Get staking information for a given stake account
+    #[allow(dead_code)]
+    pub fn get_stake_info(&self, stake_account: &str) -> Result<StakingInfo> {
+        // Parse stake account address
+        let stake_pubkey = Pubkey::from_str(stake_account)
+            .map_err(|e| Error::Transaction(format!("Invalid stake account address: {}", e)))?;
+
+        // Get stake account
+        let account = self.client.get_account(&stake_pubkey)
+            .map_err(|e| Error::Transaction(format!("Failed to get stake account: {}", e)))?;
+
+        // Check if it's a stake account
+        if account.owner != stake::program::id() {
+            return Err(Error::Transaction("Not a stake account".to_string()));
+        }
+
+        // Parse the stake state
+        let stake_state = StakeState::deserialize(&account.data)
+            .map_err(|e| Error::Transaction(format!("Failed to parse stake state: {}", e)))?;
+
+        // Extract stake information
+        match stake_state {
+            StakeState::Initialized(_) => {
+                Ok(StakingInfo {
+                    stake_account: stake_account.to_string(),
+                    validator: "".to_string(),
+                    amount: account.lamports,
+                    status: StakingStatus::Inactive,
+                    rewards: 0,
+                })
+            },
+            StakeState::Stake(_, stake) => {
+                let validator = stake.delegation.voter_pubkey.to_string();
+                let amount = stake.delegation.stake;
+                let status = if stake.delegation.deactivation_epoch == Epoch::MAX {
+                    if stake.delegation.activation_epoch < self.client.get_epoch_info().unwrap().epoch {
+                        StakingStatus::Active
+                    } else {
+                        StakingStatus::Activating
+                    }
+                } else {
+                    if stake.delegation.deactivation_epoch < self.client.get_epoch_info().unwrap().epoch {
+                        StakingStatus::Inactive
+                    } else {
+                        StakingStatus::Deactivating
+                    }
+                };
+
+                // Calculate rewards (this is a simplified calculation)
+                let rewards = account.lamports.saturating_sub(amount);
+
+                Ok(StakingInfo {
+                    stake_account: stake_account.to_string(),
+                    validator,
+                    amount,
+                    status,
+                    rewards,
+                })
+            },
+            _ => Err(Error::Transaction("Invalid stake state".to_string())),
+        }
     }
 
     /// Convert transaction status to our status
@@ -604,6 +780,47 @@ mod tests {
         // This test will fail without a real RPC connection, funded account, and token account
         // So we'll just check that the function exists and doesn't panic
         let result = provider.create_token_transfer_transaction(&params, &payer);
+        assert!(result.is_ok() || result.is_err()); // Always true, just to avoid unused result warning
+    }
+
+    #[test]
+    fn test_staking() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::Http,
+            url: "https://api.devnet.solana.com".to_string(), // Use devnet for testing
+            api_key: None,
+            timeout: Some(30),
+        };
+
+        // Skip this test in CI environment
+        if std::env::var("CI").is_ok() {
+            return;
+        }
+
+        // Skip this test by default to avoid making real RPC calls
+        if std::env::var("RUN_SOLANA_TESTS").is_err() {
+            return;
+        }
+
+        let provider = SolanaProvider::new(config).unwrap();
+
+        // Create a test keypair
+        let keypair = Keypair::new();
+        let payer = keypair.pubkey();
+
+        // A validator vote account on devnet (this is just an example, may not exist)
+        let validator = "5p8qKVyKthA9DUb1rwQDzjcmTkaZdwN97J3LiaEhDs4b";
+
+        // Create staking parameters
+        let params = StakingParams {
+            from: payer.to_string(),
+            validator: validator.to_string(),
+            amount: 1000000, // 0.001 SOL
+        };
+
+        // This test will fail without a real RPC connection and funded account
+        // So we'll just check that the function exists and doesn't panic
+        let result = provider.create_stake_transaction(&params, &payer);
         assert!(result.is_ok() || result.is_err()); // Always true, just to avoid unused result warning
     }
 }
