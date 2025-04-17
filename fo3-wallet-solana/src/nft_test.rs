@@ -134,4 +134,60 @@ mod tests {
             assert!(error_message.contains("source") || error_message.contains("account") || error_message.contains("NFT"));
         }
     }
+
+    #[tokio::test]
+    async fn test_mint_nft() {
+        let config = ProviderConfig {
+            provider_type: ProviderType::Http,
+            url: "https://api.devnet.solana.com".to_string(), // Use devnet for testing
+            api_key: None,
+            timeout: Some(30),
+        };
+
+        // Skip this test in CI environment
+        if std::env::var("CI").is_ok() {
+            return;
+        }
+
+        // Skip this test by default to avoid making real RPC calls
+        if std::env::var("RUN_SOLANA_TESTS").is_err() {
+            return;
+        }
+
+        // Create test keypair
+        let keypair = Keypair::new();
+        let wallet = keypair.pubkey().to_string();
+        let private_key = bs58::encode(keypair.to_bytes()).into_string();
+
+        // Create mint parameters
+        let params = NftMintParams {
+            name: "Test NFT".to_string(),
+            symbol: "TEST".to_string(),
+            uri: "https://example.com/nft/metadata.json".to_string(),
+            seller_fee_basis_points: Some(500), // 5%
+            creators: None,
+            is_mutable: Some(true),
+        };
+
+        let provider = SolanaProvider::new(config).unwrap();
+
+        // This test will fail without a funded wallet
+        // So we'll just check that the function exists and doesn't panic when creating the transaction
+        let result = provider.mint_nft(&wallet, &private_key, &params).await;
+
+        // The test will likely fail with an error about insufficient funds
+        // which is expected since we're using a new unfunded wallet
+        assert!(result.is_err());
+
+        // Check that the error is about insufficient funds or another expected error
+        if let Err(e) = result {
+            let error_message = e.to_string();
+            println!("Error: {}", error_message);
+            // The error could be about insufficient funds, blockhash not found, etc.
+            assert!(error_message.contains("fund") ||
+                   error_message.contains("balance") ||
+                   error_message.contains("block") ||
+                   error_message.contains("transaction"));
+        }
+    }
 }

@@ -99,6 +99,34 @@ Request body:
 
 Transfers an NFT from one wallet to another and returns the transaction signature.
 
+### Mint NFT
+
+```
+POST /nft/mint
+```
+
+Request body:
+```json
+{
+  "wallet": "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b",
+  "private_key": "your_private_key_here",
+  "name": "My NFT",
+  "symbol": "MNFT",
+  "uri": "https://example.com/nft/metadata.json",
+  "seller_fee_basis_points": 500,
+  "creators": [
+    {
+      "address": "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b",
+      "share": 100,
+      "verified": true
+    }
+  ],
+  "is_mutable": true
+}
+```
+
+Mints a new NFT and returns the mint address, token account, metadata account, and transaction signature.
+
 ## Implementation Details
 
 The NFT support is implemented using the following components:
@@ -153,6 +181,37 @@ let signature = provider.transfer_nft(
 println!("NFT transferred: {}", signature);
 ```
 
+### Mint a New NFT
+
+```rust
+// Mint a new NFT
+let wallet = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
+let private_key = "your_private_key_here";
+
+// Create mint parameters
+let params = NftMintParams {
+    name: "My NFT".to_string(),
+    symbol: "MNFT".to_string(),
+    uri: "https://example.com/nft/metadata.json".to_string(),
+    seller_fee_basis_points: Some(500), // 5%
+    creators: None, // Will default to the wallet as the creator with 100% share
+    is_mutable: Some(true),
+};
+
+// Mint NFT
+let result = provider.mint_nft(
+    wallet,
+    private_key,
+    &params,
+).await.unwrap();
+
+println!("NFT minted:");
+println!("  Mint: {}", result.mint);
+println!("  Token Account: {}", result.token_account);
+println!("  Metadata Account: {}", result.metadata_account);
+println!("  Signature: {}", result.signature);
+```
+
 ## Known Limitations
 
 - The current implementation does not fully implement external metadata fetching. In a production environment, this should be implemented using an HTTP client like reqwest.
@@ -164,4 +223,5 @@ println!("NFT transferred: {}", signature);
 - Implement external metadata fetching
 - Add support for NFT collections
 - Add support for NFT verifications
-- Add support for NFT minting
+- Add support for NFT royalties
+- Add support for NFT marketplaces

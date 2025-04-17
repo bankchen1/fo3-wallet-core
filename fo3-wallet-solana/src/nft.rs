@@ -13,6 +13,9 @@ use solana_sdk::{
     transaction::Transaction,
     signer::{Signer, keypair::Keypair},
     system_instruction,
+    rent::Rent,
+    native_token::LAMPORTS_PER_SOL,
+    hash::Hash,
 };
 use spl_token::{state::Account as TokenAccount, instruction as token_instruction};
 use spl_associated_token_account::{get_associated_token_address, instruction as associated_token_instruction};
@@ -25,6 +28,39 @@ pub const METADATA_PROGRAM_ID: &str = "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x
 
 /// Metaplex token metadata account prefix
 pub const METADATA_PREFIX: &str = "metadata";
+
+/// Metaplex token metadata instruction discriminator for create metadata accounts v3
+pub const CREATE_METADATA_ACCOUNTS_V3: u8 = 33;
+
+/// NFT mint parameters
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftMintParams {
+    /// NFT name
+    pub name: String,
+    /// NFT symbol
+    pub symbol: String,
+    /// NFT URI (usually points to JSON metadata)
+    pub uri: String,
+    /// NFT seller fee basis points (e.g., 500 = 5%)
+    pub seller_fee_basis_points: Option<u16>,
+    /// NFT creators
+    pub creators: Option<Vec<NftCreator>>,
+    /// Whether the NFT metadata is mutable
+    pub is_mutable: Option<bool>,
+}
+
+/// NFT mint result
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct NftMintResult {
+    /// NFT mint address
+    pub mint: String,
+    /// NFT token account address
+    pub token_account: String,
+    /// NFT metadata account address
+    pub metadata_account: String,
+    /// Transaction signature
+    pub signature: String,
+}
 
 /// NFT metadata
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -485,5 +521,202 @@ impl NftClient {
             .map_err(|e| Error::Transaction(format!("Failed to send transaction: {}", e)))?;
 
         Ok(signature.to_string())
+    }
+
+    /// Mint a new NFT
+    pub async fn mint_nft(
+        &self,
+        wallet: &str,
+        keypair: &Keypair,
+        params: &NftMintParams,
+    ) -> Result<NftMintResult> {
+        // Parse wallet address
+        let wallet_pubkey = Pubkey::from_str(wallet)
+            .map_err(|e| Error::Transaction(format!("Invalid wallet address: {}", e)))?;
+
+        // Verify that the keypair matches the wallet
+        if keypair.pubkey() != wallet_pubkey {
+            return Err(Error::Transaction("Keypair does not match wallet address".to_string()));
+        }
+
+        // Create a new keypair for the mint account
+        let mint_keypair = Keypair::new();
+        let mint_pubkey = mint_keypair.pubkey();
+
+        // Get recent blockhash
+        let recent_blockhash = self.client.get_latest_blockhash()
+            .map_err(|e| Error::Transaction(format!("Failed to get recent blockhash: {}", e)))?;
+
+        // Get rent-exempt minimum balance for mint account
+        let rent = self.client.get_minimum_rent_for_exempt_size(spl_token::state::Mint::LEN)
+            .map_err(|e| Error::Transaction(format!("Failed to get rent exemption: {}", e)))?;
+
+        let mut instructions = Vec::new();
+
+        // 1. Create mint account
+        instructions.push(system_instruction::create_account(
+            &wallet_pubkey,
+            &mint_pubkey,
+            rent,
+            spl_token::state::Mint::LEN as u64,
+            &spl_token::id(),
+        ));
+
+        // 2. Initialize mint account
+        instructions.push(token_instruction::initialize_mint(
+            &spl_token::id(),
+            &mint_pubkey,
+            &wallet_pubkey,
+            None, // Freeze authority
+            0,     // Decimals (0 for NFTs)
+        ).map_err(|e| Error::Transaction(format!("Failed to create initialize mint instruction: {}", e)))?);
+
+        // 3. Create associated token account for the owner
+        let token_account = get_associated_token_address(&wallet_pubkey, &mint_pubkey);
+        instructions.push(associated_token_instruction::create_associated_token_account(
+            &wallet_pubkey,
+            &wallet_pubkey,
+            &mint_pubkey,
+            &spl_token::id(),
+        ));
+
+        // 4. Mint 1 token to the owner's token account
+        instructions.push(token_instruction::mint_to(
+            &spl_token::id(),
+            &mint_pubkey,
+            &token_account,
+            &wallet_pubkey,
+            &[&wallet_pubkey],
+            1, // Amount (1 for NFTs)
+        ).map_err(|e| Error::Transaction(format!("Failed to create mint to instruction: {}", e)))?);
+
+        // 5. Create metadata account
+        let metadata_program_id = Pubkey::from_str(METADATA_PROGRAM_ID)
+            .map_err(|e| Error::Transaction(format!("Invalid metadata program ID: {}", e)))?;
+
+        let metadata_seeds = &[
+            METADATA_PREFIX.as_bytes(),
+            metadata_program_id.as_ref(),
+            mint_pubkey.as_ref(),
+        ];
+
+        let (metadata_pubkey, _) = Pubkey::find_program_address(metadata_seeds, &metadata_program_id);
+
+        // Create metadata instruction data
+        let creators = params.creators.clone().unwrap_or_default();
+        let creators_vec: Vec<Creator> = creators.iter().map(|c| {
+            Creator {
+                address: Pubkey::from_str(&c.address).unwrap_or(wallet_pubkey),
+                verified: c.verified,
+                share: c.share,
+            }
+        }).collect();
+
+        // If no creators are specified, add the wallet as the creator with 100% share
+        let creators_data = if creators_vec.is_empty() {
+            Some(vec![Creator {
+                address: wallet_pubkey,
+                verified: true,
+                share: 100,
+            }])
+        } else {
+            Some(creators_vec)
+        };
+
+        let data = MetadataData {
+            name: params.name.clone(),
+            symbol: params.symbol.clone(),
+            uri: params.uri.clone(),
+            seller_fee_basis_points: params.seller_fee_basis_points.unwrap_or(0),
+            creators: creators_data,
+        };
+
+        // Create metadata instruction
+        let create_metadata_ix = create_metadata_instruction(
+            metadata_program_id,
+            metadata_pubkey,
+            mint_pubkey,
+            wallet_pubkey,
+            wallet_pubkey,
+            wallet_pubkey,
+            data,
+            params.is_mutable.unwrap_or(true),
+        );
+
+        instructions.push(create_metadata_ix);
+
+        // Create transaction
+        let mut transaction = Transaction::new_with_payer(
+            &instructions,
+            Some(&wallet_pubkey),
+        );
+
+        // Set recent blockhash
+        transaction.message.recent_blockhash = recent_blockhash;
+
+        // Sign transaction with wallet keypair and mint keypair
+        transaction.sign(&[keypair, &mint_keypair], recent_blockhash);
+
+        // Send transaction
+        let signature = self.client.send_and_confirm_transaction(&transaction)
+            .map_err(|e| Error::Transaction(format!("Failed to send transaction: {}", e)))?;
+
+        // Return result
+        Ok(NftMintResult {
+            mint: mint_pubkey.to_string(),
+            token_account: token_account.to_string(),
+            metadata_account: metadata_pubkey.to_string(),
+            signature: signature.to_string(),
+        })
+    }
+}
+
+/// Create metadata instruction
+fn create_metadata_instruction(
+    program_id: Pubkey,
+    metadata_account: Pubkey,
+    mint: Pubkey,
+    mint_authority: Pubkey,
+    payer: Pubkey,
+    update_authority: Pubkey,
+    data: MetadataData,
+    is_mutable: bool,
+) -> Instruction {
+    // Create instruction data
+    let mut instruction_data = vec![CREATE_METADATA_ACCOUNTS_V3];
+
+    // Serialize metadata
+    let mut metadata = vec![];
+    data.serialize(&mut metadata).unwrap();
+
+    // Add metadata to instruction data
+    instruction_data.extend_from_slice(&(metadata.len() as u32).to_le_bytes());
+    instruction_data.extend_from_slice(&metadata);
+
+    // Add is_mutable flag
+    instruction_data.extend_from_slice(&[is_mutable as u8]);
+
+    // Add collection details (none for now)
+    instruction_data.extend_from_slice(&[0]); // No collection
+
+    // Add uses details (none for now)
+    instruction_data.extend_from_slice(&[0]); // No uses
+
+    // Create accounts
+    let accounts = vec![
+        solana_sdk::instruction::AccountMeta::new(metadata_account, false),
+        solana_sdk::instruction::AccountMeta::new(mint, false),
+        solana_sdk::instruction::AccountMeta::new_readonly(mint_authority, true),
+        solana_sdk::instruction::AccountMeta::new_readonly(payer, true),
+        solana_sdk::instruction::AccountMeta::new_readonly(update_authority, true),
+        solana_sdk::instruction::AccountMeta::new_readonly(solana_sdk::system_program::id(), false),
+        solana_sdk::instruction::AccountMeta::new_readonly(solana_sdk::sysvar::rent::id(), false),
+    ];
+
+    // Create instruction
+    Instruction {
+        program_id,
+        accounts,
+        data: instruction_data,
     }
 }

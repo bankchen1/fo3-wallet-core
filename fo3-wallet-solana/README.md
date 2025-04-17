@@ -197,6 +197,17 @@ let from_wallet = "9ZNTfG4NyQgxy2SWjSiQoUyBPEvXT2xo7fKc5hPYYJ7b";
 let to_wallet = "83astBRguLMdt2h5U1Tpdq5tjFoJ6noeGwaY3mDLVcri";
 let private_key = "your_private_key_here";
 let signature = provider.transfer_nft(from_wallet, to_wallet, mint, private_key).await.unwrap();
+
+// Mint a new NFT
+let params = NftMintParams {
+    name: "My NFT".to_string(),
+    symbol: "MNFT".to_string(),
+    uri: "https://example.com/nft/metadata.json".to_string(),
+    seller_fee_basis_points: Some(500), // 5%
+    creators: None,
+    is_mutable: Some(true),
+};
+let result = provider.mint_nft(wallet_address, private_key, &params).await.unwrap();
 ```
 
 See [NFT Documentation](docs/nft.md) for more details.
