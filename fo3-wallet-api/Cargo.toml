@@ -15,7 +15,7 @@ serde = { workspace = true }
 serde_json = { workspace = true }
 
 # Async runtime
-tokio = { version = "1.14.1", features = ["full"] }
+tokio = { workspace = true }
 
 # Web server
 axum = { workspace = true }

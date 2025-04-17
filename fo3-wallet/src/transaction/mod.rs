@@ -3,7 +3,7 @@
 //! This module provides functionality for creating, signing, and broadcasting
 //! transactions across multiple blockchains.
 
-mod types;
+pub mod types;
 mod ethereum;
 mod solana;
 mod bitcoin;

@@ -10,7 +10,7 @@ license = "MIT"
 default = ["ethereum", "bitcoin"]
 ethereum = []
 bitcoin = []
-solana = ["fo3-wallet-solana"]
+solana = []
 
 [dependencies]
 # Serialization
@@ -43,8 +43,7 @@ ethers-signers = { workspace = true }
 ethers-core = { workspace = true }
 k256 = "0.13"
 
-# Solana dependencies
-fo3-wallet-solana = { path = "../fo3-wallet-solana", optional = true }
+# Solana dependencies are in fo3-wallet-solana crate
 
 # Specific versions to resolve dependency conflicts
 # curve25519-dalek = { workspace = true }
