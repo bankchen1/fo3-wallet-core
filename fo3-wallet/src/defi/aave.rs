@@ -178,9 +178,14 @@ impl AaveLendingService {
                 // First approve lending pool to spend tokens
                 let token_contract = super::ethereum::IERC20::new(asset, self.provider.clone());
 
-                let approve_tx = token_contract.approve(self.aave_v2.lending_pool, amount)
-                    .send()
-                    .await
+                // Create the approve call
+                let approve_call = token_contract.approve(self.aave_v2.lending_pool, amount);
+
+                // Send the approve transaction
+                let pending_approve = approve_call.send();
+
+                // Wait for the approve transaction
+                let approve_tx = pending_approve.await
                     .map_err(|e| Error::DeFi(format!("Failed to approve token: {}", e)))?;
 
                 // Wait for approval to be mined
@@ -188,43 +193,58 @@ impl AaveLendingService {
                     .map_err(|e| Error::DeFi(format!("Failed to get approval receipt: {}", e)))?;
 
                 // Execute deposit
-                let tx = lending_pool.deposit(
+                // Create the deposit call
+                let deposit_call = lending_pool.deposit(
                     asset,
                     amount,
                     wallet.address(),
                     0, // referral code
-                )
-                .send()
-                .await
-                .map_err(|e| Error::DeFi(format!("Failed to execute deposit: {}", e)))?;
+                );
+
+                // Send the deposit transaction
+                let pending_deposit = deposit_call.send();
+
+                // Wait for the deposit transaction
+                let tx = pending_deposit.await
+                    .map_err(|e| Error::DeFi(format!("Failed to execute deposit: {}", e)))?;
 
                 tx.tx_hash()
             },
             LendingAction::Withdraw(_) => {
                 // Execute withdraw
-                let tx = lending_pool.withdraw(
+                // Create the withdraw call
+                let withdraw_call = lending_pool.withdraw(
                     asset,
                     amount,
                     wallet.address(),
-                )
-                .send()
-                .await
-                .map_err(|e| Error::DeFi(format!("Failed to execute withdraw: {}", e)))?;
+                );
+
+                // Send the withdraw transaction
+                let pending_withdraw = withdraw_call.send();
+
+                // Wait for the withdraw transaction
+                let tx = pending_withdraw.await
+                    .map_err(|e| Error::DeFi(format!("Failed to execute withdraw: {}", e)))?;
 
                 tx.tx_hash()
             },
             LendingAction::Borrow(_) => {
                 // Execute borrow
-                let tx = lending_pool.borrow(
+                // Create the borrow call
+                let borrow_call = lending_pool.borrow(
                     asset,
                     amount,
                     U256::from(2), // variable interest rate mode
                     0u16, // referral code
                     wallet.address(),
-                )
-                .send()
-                .await
-                .map_err(|e| Error::DeFi(format!("Failed to execute borrow: {}", e)))?;
+                );
+
+                // Send the borrow transaction
+                let pending_borrow = borrow_call.send();
+
+                // Wait for the borrow transaction
+                let tx = pending_borrow.await
+                    .map_err(|e| Error::DeFi(format!("Failed to execute borrow: {}", e)))?;
 
                 tx.tx_hash()
             },
@@ -232,9 +252,14 @@ impl AaveLendingService {
                 // First approve lending pool to spend tokens
                 let token_contract = super::ethereum::IERC20::new(asset, self.provider.clone());
 
-                let approve_tx = token_contract.approve(self.aave_v2.lending_pool, amount)
-                    .send()
-                    .await
+                // Create the approve call
+                let approve_call = token_contract.approve(self.aave_v2.lending_pool, amount);
+
+                // Send the approve transaction
+                let pending_approve = approve_call.send();
+
+                // Wait for the approve transaction
+                let approve_tx = pending_approve.await
                     .map_err(|e| Error::DeFi(format!("Failed to approve token: {}", e)))?;
 
                 // Wait for approval to be mined
@@ -242,15 +267,20 @@ impl AaveLendingService {
                     .map_err(|e| Error::DeFi(format!("Failed to get approval receipt: {}", e)))?;
 
                 // Execute repay
-                let tx = lending_pool.repay(
+                // Create the repay call
+                let repay_call = lending_pool.repay(
                     asset,
                     amount,
                     U256::from(2), // variable interest rate mode
                     wallet.address(),
-                )
-                .send()
-                .await
-                .map_err(|e| Error::DeFi(format!("Failed to execute repay: {}", e)))?;
+                );
+
+                // Send the repay transaction
+                let pending_repay = repay_call.send();
+
+                // Wait for the repay transaction
+                let tx = pending_repay.await
+                    .map_err(|e| Error::DeFi(format!("Failed to execute repay: {}", e)))?;
 
                 tx.tx_hash()
             },

@@ -133,10 +133,15 @@ impl LidoStakingService {
                 let steth = ILidoStETH::new(self.lido.steth, self.provider.clone());
 
                 // Execute stake
-                let tx = steth.submit(Address::zero())
-                    .value(amount)
-                    .send()
-                    .await
+                // Create the stake call
+                let stake_call = steth.submit(Address::zero())
+                    .value(amount);
+
+                // Send the stake transaction
+                let pending_stake = stake_call.send();
+
+                // Wait for the stake transaction
+                let tx = pending_stake.await
                     .map_err(|e| Error::DeFi(format!("Failed to execute stake: {}", e)))?;
 
                 (tx.tx_hash(), None)
@@ -157,9 +162,14 @@ impl LidoStakingService {
                 // First approve withdrawal queue to spend stETH
                 let steth = ILidoStETH::new(self.lido.steth, self.provider.clone());
 
-                let approve_tx = steth.approve(self.lido.withdrawal_queue, amount)
-                    .send()
-                    .await
+                // Create the approve call
+                let approve_call = steth.approve(self.lido.withdrawal_queue, amount);
+
+                // Send the approve transaction
+                let pending_approve = approve_call.send();
+
+                // Wait for the approve transaction
+                let approve_tx = pending_approve.await
                     .map_err(|e| Error::DeFi(format!("Failed to approve stETH: {}", e)))?;
 
                 // Wait for approval to be mined
@@ -168,9 +178,14 @@ impl LidoStakingService {
 
                 // Execute unstake
                 let amounts = vec![amount];
-                let tx = withdrawal_queue.request_withdrawals(amounts, wallet.address())
-                    .send()
-                    .await
+                // Create the unstake call
+                let unstake_call = withdrawal_queue.request_withdrawals(amounts, wallet.address());
+
+                // Send the unstake transaction
+                let pending_unstake = unstake_call.send();
+
+                // Wait for the unstake transaction
+                let tx = pending_unstake.await
                     .map_err(|e| Error::DeFi(format!("Failed to execute unstake: {}", e)))?;
 
                 (tx.tx_hash(), None)

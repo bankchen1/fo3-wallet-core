@@ -238,16 +238,21 @@ impl EthereumDeFiService {
         // Execute swap
         let tx_hash = if is_from_eth && !is_to_eth {
             // ETH to Token
-            let tx = router.swap_exact_eth_for_tokens(
+            // Create the contract call
+            let contract_call = router.swap_exact_eth_for_tokens(
                 amount_out_min,
                 path,
                 wallet.address(),
                 deadline,
             )
-            .value(amount_in)
-            .send()
-            .await
-            .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
+            .value(amount_in);
+
+            // Send the transaction
+            let pending_tx = contract_call.send();
+
+            // Wait for the transaction
+            let tx = pending_tx.await
+                .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
 
             tx.tx_hash()
         } else if !is_from_eth && is_to_eth {
@@ -255,9 +260,14 @@ impl EthereumDeFiService {
             // First approve router to spend tokens
             let token_contract = IERC20::new(from_address, self.provider.clone());
 
-            let approve_tx = token_contract.approve(self.uniswap.v2, amount_in)
-                .send()
-                .await
+            // Create the approve call
+            let approve_call = token_contract.approve(self.uniswap.v2, amount_in);
+
+            // Send the approve transaction
+            let pending_approve = approve_call.send();
+
+            // Wait for the approve transaction
+            let approve_tx = pending_approve.await
                 .map_err(|e| Error::DeFi(format!("Failed to approve token: {}", e)))?;
 
             // Wait for approval to be mined
@@ -265,16 +275,21 @@ impl EthereumDeFiService {
                 .map_err(|e| Error::DeFi(format!("Failed to get approval receipt: {}", e)))?;
 
             // Execute swap
-            let tx = router.swap_exact_tokens_for_eth(
+            // Create the contract call
+            let contract_call = router.swap_exact_tokens_for_eth(
                 amount_in,
                 amount_out_min,
                 path,
                 wallet.address(),
                 deadline,
-            )
-            .send()
-            .await
-            .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
+            );
+
+            // Send the transaction
+            let pending_tx = contract_call.send();
+
+            // Wait for the transaction
+            let tx = pending_tx.await
+                .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
 
             tx.tx_hash()
         } else if !is_from_eth && !is_to_eth {
@@ -282,9 +297,14 @@ impl EthereumDeFiService {
             // First approve router to spend tokens
             let token_contract = IERC20::new(from_address, self.provider.clone());
 
-            let approve_tx = token_contract.approve(self.uniswap.v2, amount_in)
-                .send()
-                .await
+            // Create the approve call
+            let approve_call = token_contract.approve(self.uniswap.v2, amount_in);
+
+            // Send the approve transaction
+            let pending_approve = approve_call.send();
+
+            // Wait for the approve transaction
+            let approve_tx = pending_approve.await
                 .map_err(|e| Error::DeFi(format!("Failed to approve token: {}", e)))?;
 
             // Wait for approval to be mined
@@ -292,16 +312,21 @@ impl EthereumDeFiService {
                 .map_err(|e| Error::DeFi(format!("Failed to get approval receipt: {}", e)))?;
 
             // Execute swap
-            let tx = router.swap_exact_tokens_for_tokens(
+            // Create the contract call
+            let contract_call = router.swap_exact_tokens_for_tokens(
                 amount_in,
                 amount_out_min,
                 path,
                 wallet.address(),
                 deadline,
-            )
-            .send()
-            .await
-            .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
+            );
+
+            // Send the transaction
+            let pending_tx = contract_call.send();
+
+            // Wait for the transaction
+            let tx = pending_tx.await
+                .map_err(|e| Error::DeFi(format!("Failed to execute swap: {}", e)))?;
 
             tx.tx_hash()
         } else {
