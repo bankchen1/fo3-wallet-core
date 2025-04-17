@@ -325,6 +325,8 @@ impl TransactionManager for SolanaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use fo3_wallet::transaction::provider::ProviderType;
+    use solana_sdk::signature::Signer;
 
     #[test]
     fn test_create_transaction() {
