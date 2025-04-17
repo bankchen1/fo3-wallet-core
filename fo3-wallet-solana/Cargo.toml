@@ -24,6 +24,8 @@ solana-sdk = "1.16.0"
 solana-client = "1.16.0"
 solana-transaction-status = "1.16.0"
 solana-program = "1.16.0"
+spl-token = "3.5.0"
+spl-associated-token-account = "1.1.3"
 
 # Encoding
 bs58 = "0.5"
