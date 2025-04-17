@@ -8,7 +8,7 @@ use serde::{Serialize, Deserialize};
 
 use solana_sdk::{
     pubkey::Pubkey,
-    signature::{Keypair, Signer},
+    signature::Keypair,
     system_instruction,
     transaction::Transaction as SolTransaction,
     commitment_config::{CommitmentConfig, CommitmentLevel},
@@ -19,7 +19,6 @@ use solana_transaction_status::{UiTransactionStatusMeta, UiTransactionEncoding};
 use fo3_wallet::error::{Error, Result};
 use fo3_wallet::crypto::keys::KeyType;
 use fo3_wallet::transaction::{Transaction, TransactionRequest, TransactionReceipt, TransactionStatus, TransactionSigner, TransactionBroadcaster, TransactionManager, TransactionType};
-use fo3_wallet::transaction::provider::ProviderType;
 use fo3_wallet::transaction::provider::ProviderConfig;
 
 /// Solana transaction
@@ -134,7 +133,7 @@ impl TransactionSigner for SolanaProvider {
 
         // Get the private key from the request data
         let private_key = match &request.data {
-            Some(data) => {
+            Some(_) => {
                 // In a real implementation, we would parse the data to get the private key
                 // For now, we'll just use a dummy private key for testing
                 "4NMwxzmYbvq8yRuZUi4YfJFXxZUEH1WsWmwMQNeGTAjpu5NpjcZKx7GYLEkTqRQJMQmxmAYmYP3HJgMoYDKnphXx"
@@ -326,7 +325,6 @@ impl TransactionManager for SolanaProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use serde_json::json;
 
     #[test]
     fn test_create_transaction() {
@@ -347,9 +345,9 @@ mod tests {
             return;
         }
 
-        let provider = SolanaProvider::new(config).unwrap();
+        let _provider = SolanaProvider::new(config).unwrap();
 
-        let request = TransactionRequest {
+        let _request = TransactionRequest {
             key_type: KeyType::Solana,
             from: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
             to: "vines1vzrYbzLMRdu58ou5XTby4qAqVRLmqo36NKPTg".to_string(),
@@ -388,7 +386,7 @@ mod tests {
 
         // Create a test keypair
         let keypair = Keypair::new();
-        let private_key = bs58::encode(keypair.to_bytes()).into_string();
+        let _private_key = bs58::encode(keypair.to_bytes()).into_string();
         let from_address = keypair.pubkey().to_string();
 
         // Create a transaction request

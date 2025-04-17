@@ -286,6 +286,7 @@ impl TransactionManager for BitcoinProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transaction::provider::ProviderType;
 
     #[test]
     fn test_network() {

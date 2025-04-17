@@ -223,6 +223,8 @@ impl TransactionManager for EthereumProvider {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::transaction::provider::ProviderType;
+    use ethers::types::NameOrAddress;
 
     #[test]
     fn test_chain_id() {
