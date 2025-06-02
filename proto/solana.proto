@@ -1,0 +1,304 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// Solana-specific service for NFTs and advanced features
+service SolanaService {
+  // Get NFTs owned by a wallet
+  rpc GetNftsByOwner(GetNftsByOwnerRequest) returns (GetNftsByOwnerResponse);
+  
+  // Get NFT metadata
+  rpc GetNftMetadata(GetNftMetadataRequest) returns (GetNftMetadataResponse);
+  
+  // Transfer NFT
+  rpc TransferNft(TransferNftRequest) returns (TransferNftResponse);
+  
+  // Mint new NFT
+  rpc MintNft(MintNftRequest) returns (MintNftResponse);
+  
+  // Get token info
+  rpc GetTokenInfo(GetTokenInfoRequest) returns (GetTokenInfoResponse);
+  
+  // Transfer SPL tokens
+  rpc TransferTokens(TransferTokensRequest) returns (TransferTokensResponse);
+  
+  // Stake SOL
+  rpc StakeSol(StakeSolRequest) returns (StakeSolResponse);
+  
+  // Get staking info
+  rpc GetStakingInfo(GetStakingInfoRequest) returns (GetStakingInfoResponse);
+  
+  // Get Raydium token pairs
+  rpc GetRaydiumPairs(GetRaydiumPairsRequest) returns (GetRaydiumPairsResponse);
+  
+  // Get Raydium swap quote
+  rpc GetRaydiumQuote(GetRaydiumQuoteRequest) returns (GetRaydiumQuoteResponse);
+  
+  // Execute Raydium swap
+  rpc ExecuteRaydiumSwap(ExecuteRaydiumSwapRequest) returns (ExecuteRaydiumSwapResponse);
+  
+  // Get Orca token pairs
+  rpc GetOrcaPairs(GetOrcaPairsRequest) returns (GetOrcaPairsResponse);
+  
+  // Get Orca swap quote
+  rpc GetOrcaQuote(GetOrcaQuoteRequest) returns (GetOrcaQuoteResponse);
+  
+  // Execute Orca swap
+  rpc ExecuteOrcaSwap(ExecuteOrcaSwapRequest) returns (ExecuteOrcaSwapResponse);
+}
+
+// NFT token representation
+message NftToken {
+  string mint = 1;
+  string name = 2;
+  string symbol = 3;
+  string uri = 4;
+  string owner = 5;
+  bool is_mutable = 6;
+  repeated NftCreator creators = 7;
+  int32 seller_fee_basis_points = 8;
+}
+
+// NFT creator
+message NftCreator {
+  string address = 1;
+  bool verified = 2;
+  int32 share = 3;
+}
+
+// NFT metadata
+message NftMetadata {
+  string name = 1;
+  string symbol = 2;
+  string description = 3;
+  string image = 4;
+  string animation_url = 5;
+  string external_url = 6;
+  repeated NftAttribute attributes = 7;
+}
+
+// NFT attribute
+message NftAttribute {
+  string trait_type = 1;
+  string value = 2;
+}
+
+// Token info
+message TokenInfo {
+  string mint = 1;
+  string name = 2;
+  string symbol = 3;
+  int32 decimals = 4;
+  string supply = 5;
+  bool is_initialized = 6;
+  string freeze_authority = 7;
+  string mint_authority = 8;
+}
+
+// Staking info
+message StakingInfo {
+  string stake_account = 1;
+  string validator = 2;
+  string delegated_amount = 3;
+  string rewards = 4;
+  string activation_epoch = 5;
+  string deactivation_epoch = 6;
+  bool is_active = 7;
+}
+
+// Token pair
+message TokenPair {
+  string token_a = 1;
+  string token_b = 2;
+  string pool_address = 3;
+}
+
+// Swap quote
+message SolanaSwapQuote {
+  string input_amount = 1;
+  string output_amount = 2;
+  string min_output_amount = 3;
+  string price_impact = 4;
+  string fee = 5;
+  string route = 6;
+}
+
+// Get NFTs by owner request
+message GetNftsByOwnerRequest {
+  string wallet_address = 1;
+}
+
+// Get NFTs by owner response
+message GetNftsByOwnerResponse {
+  repeated NftToken nfts = 1;
+}
+
+// Get NFT metadata request
+message GetNftMetadataRequest {
+  string mint = 1;
+}
+
+// Get NFT metadata response
+message GetNftMetadataResponse {
+  NftMetadata metadata = 1;
+}
+
+// Transfer NFT request
+message TransferNftRequest {
+  string from_address = 1;
+  string to_address = 2;
+  string mint = 3;
+  string private_key = 4;
+}
+
+// Transfer NFT response
+message TransferNftResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}
+
+// Mint NFT request
+message MintNftRequest {
+  string wallet_address = 1;
+  string private_key = 2;
+  string name = 3;
+  string symbol = 4;
+  string uri = 5;
+  int32 seller_fee_basis_points = 6;
+  repeated NftCreator creators = 7;
+  bool is_mutable = 8;
+}
+
+// Mint NFT response
+message MintNftResponse {
+  string mint = 1;
+  string transaction_hash = 2;
+  bool success = 3;
+}
+
+// Get token info request
+message GetTokenInfoRequest {
+  string token_mint = 1;
+}
+
+// Get token info response
+message GetTokenInfoResponse {
+  TokenInfo token_info = 1;
+}
+
+// Transfer tokens request
+message TransferTokensRequest {
+  string from_address = 1;
+  string to_address = 2;
+  string token_mint = 3;
+  string amount = 4;
+  int32 decimals = 5;
+  string private_key = 6;
+}
+
+// Transfer tokens response
+message TransferTokensResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}
+
+// Stake SOL request
+message StakeSolRequest {
+  string wallet_address = 1;
+  string validator_address = 2;
+  string amount = 3;
+  string private_key = 4;
+}
+
+// Stake SOL response
+message StakeSolResponse {
+  string stake_account = 1;
+  string transaction_hash = 2;
+  bool success = 3;
+}
+
+// Get staking info request
+message GetStakingInfoRequest {
+  string stake_account = 1;
+}
+
+// Get staking info response
+message GetStakingInfoResponse {
+  StakingInfo staking_info = 1;
+}
+
+// Get Raydium pairs request
+message GetRaydiumPairsRequest {}
+
+// Get Raydium pairs response
+message GetRaydiumPairsResponse {
+  repeated TokenPair pairs = 1;
+}
+
+// Get Raydium quote request
+message GetRaydiumQuoteRequest {
+  string input_mint = 1;
+  string output_mint = 2;
+  string amount = 3;
+  double slippage = 4;
+}
+
+// Get Raydium quote response
+message GetRaydiumQuoteResponse {
+  SolanaSwapQuote quote = 1;
+}
+
+// Execute Raydium swap request
+message ExecuteRaydiumSwapRequest {
+  string input_mint = 1;
+  string output_mint = 2;
+  string amount = 3;
+  string min_amount_out = 4;
+  string wallet_address = 5;
+  string private_key = 6;
+}
+
+// Execute Raydium swap response
+message ExecuteRaydiumSwapResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}
+
+// Get Orca pairs request
+message GetOrcaPairsRequest {}
+
+// Get Orca pairs response
+message GetOrcaPairsResponse {
+  repeated TokenPair pairs = 1;
+}
+
+// Get Orca quote request
+message GetOrcaQuoteRequest {
+  string input_mint = 1;
+  string output_mint = 2;
+  string amount = 3;
+  double slippage = 4;
+}
+
+// Get Orca quote response
+message GetOrcaQuoteResponse {
+  SolanaSwapQuote quote = 1;
+}
+
+// Execute Orca swap request
+message ExecuteOrcaSwapRequest {
+  string input_mint = 1;
+  string output_mint = 2;
+  string amount = 3;
+  string min_amount_out = 4;
+  string wallet_address = 5;
+  string private_key = 6;
+}
+
+// Execute Orca swap response
+message ExecuteOrcaSwapResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}

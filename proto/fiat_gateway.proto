@@ -1,0 +1,343 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Fiat Gateway service for bank account integration and fiat transactions
+service FiatGatewayService {
+  // Account Management
+  rpc BindBankAccount(BindBankAccountRequest) returns (BindBankAccountResponse);
+  rpc GetBankAccounts(GetBankAccountsRequest) returns (GetBankAccountsResponse);
+  rpc RemoveBankAccount(RemoveBankAccountRequest) returns (RemoveBankAccountResponse);
+  rpc VerifyBankAccount(VerifyBankAccountRequest) returns (VerifyBankAccountResponse);
+  
+  // Withdrawal Operations
+  rpc SubmitWithdrawal(SubmitWithdrawalRequest) returns (SubmitWithdrawalResponse);
+  rpc GetWithdrawalStatus(GetWithdrawalStatusRequest) returns (GetWithdrawalStatusResponse);
+  rpc ListWithdrawals(ListWithdrawalsRequest) returns (ListWithdrawalsResponse);
+  rpc CancelWithdrawal(CancelWithdrawalRequest) returns (CancelWithdrawalResponse);
+  
+  // Deposit Operations
+  rpc InitiateDeposit(InitiateDepositRequest) returns (InitiateDepositResponse);
+  rpc GetDepositStatus(GetDepositStatusRequest) returns (GetDepositStatusResponse);
+  rpc ListDeposits(ListDepositsRequest) returns (ListDepositsResponse);
+  
+  // Admin Operations
+  rpc ApproveWithdrawal(ApproveWithdrawalRequest) returns (ApproveWithdrawalResponse);
+  rpc RejectWithdrawal(RejectWithdrawalRequest) returns (RejectWithdrawalResponse);
+  rpc GetTransactionLimits(GetTransactionLimitsRequest) returns (GetTransactionLimitsResponse);
+  rpc UpdateTransactionLimits(UpdateTransactionLimitsRequest) returns (UpdateTransactionLimitsResponse);
+  
+  // Webhook handling
+  rpc ProcessWebhook(ProcessWebhookRequest) returns (ProcessWebhookResponse);
+}
+
+// Payment provider types
+enum PaymentProvider {
+  PAYMENT_PROVIDER_UNSPECIFIED = 0;
+  PAYMENT_PROVIDER_ACH = 1;
+  PAYMENT_PROVIDER_VISA = 2;
+  PAYMENT_PROVIDER_PAYPAL = 3;
+  PAYMENT_PROVIDER_WIRE = 4;
+  PAYMENT_PROVIDER_SEPA = 5;
+}
+
+// Account types
+enum AccountType {
+  ACCOUNT_TYPE_UNSPECIFIED = 0;
+  ACCOUNT_TYPE_CHECKING = 1;
+  ACCOUNT_TYPE_SAVINGS = 2;
+  ACCOUNT_TYPE_CREDIT_CARD = 3;
+  ACCOUNT_TYPE_PAYPAL = 4;
+}
+
+// Transaction status
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING = 1;
+  TRANSACTION_STATUS_PROCESSING = 2;
+  TRANSACTION_STATUS_COMPLETED = 3;
+  TRANSACTION_STATUS_FAILED = 4;
+  TRANSACTION_STATUS_CANCELLED = 5;
+  TRANSACTION_STATUS_REQUIRES_APPROVAL = 6;
+  TRANSACTION_STATUS_APPROVED = 7;
+  TRANSACTION_STATUS_REJECTED = 8;
+}
+
+// Transaction type
+enum TransactionType {
+  TRANSACTION_TYPE_UNSPECIFIED = 0;
+  TRANSACTION_TYPE_DEPOSIT = 1;
+  TRANSACTION_TYPE_WITHDRAWAL = 2;
+}
+
+// Bank account information
+message BankAccount {
+  string id = 1;
+  string user_id = 2;
+  PaymentProvider provider = 3;
+  AccountType account_type = 4;
+  string account_name = 5;
+  string masked_account_number = 6; // Last 4 digits only
+  string routing_number = 7;
+  string bank_name = 8;
+  bool is_verified = 9;
+  bool is_primary = 10;
+  int64 created_at = 11;
+  int64 verified_at = 12;
+  string currency = 13; // USD, EUR, etc.
+  string country = 14;
+}
+
+// Fiat transaction record
+message FiatTransaction {
+  string id = 1;
+  string user_id = 2;
+  TransactionType type = 3;
+  TransactionStatus status = 4;
+  string amount = 5; // Decimal string for precision
+  string currency = 6;
+  string fee_amount = 7; // Decimal string for precision
+  string net_amount = 8; // Amount - fee
+  string bank_account_id = 9;
+  PaymentProvider provider = 10;
+  string external_transaction_id = 11;
+  string reference_number = 12;
+  string description = 13;
+  int64 created_at = 14;
+  int64 updated_at = 15;
+  int64 completed_at = 16;
+  string failure_reason = 17;
+  string approval_notes = 18;
+  string approver_id = 19;
+  map<string, string> metadata = 20;
+}
+
+// Transaction limits
+message TransactionLimits {
+  string user_id = 1;
+  string daily_deposit_limit = 2;
+  string daily_withdrawal_limit = 3;
+  string monthly_deposit_limit = 4;
+  string monthly_withdrawal_limit = 5;
+  string single_transaction_limit = 6;
+  string currency = 7;
+  bool requires_approval_above = 8;
+  string approval_threshold = 9;
+  int64 updated_at = 10;
+  string updated_by = 11;
+}
+
+// Bind bank account request
+message BindBankAccountRequest {
+  string user_id = 1;
+  PaymentProvider provider = 2;
+  AccountType account_type = 3;
+  string account_name = 4;
+  string account_number = 5;
+  string routing_number = 6;
+  string bank_name = 7;
+  string currency = 8;
+  string country = 9;
+  bool set_as_primary = 10;
+}
+
+// Bind bank account response
+message BindBankAccountResponse {
+  BankAccount account = 1;
+  string verification_method = 2; // "micro_deposits", "instant", "manual"
+  repeated string verification_amounts = 3; // For micro deposit verification
+}
+
+// Get bank accounts request
+message GetBankAccountsRequest {
+  string user_id = 1;
+  bool verified_only = 2;
+}
+
+// Get bank accounts response
+message GetBankAccountsResponse {
+  repeated BankAccount accounts = 1;
+}
+
+// Remove bank account request
+message RemoveBankAccountRequest {
+  string user_id = 1;
+  string account_id = 2;
+}
+
+// Remove bank account response
+message RemoveBankAccountResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Verify bank account request
+message VerifyBankAccountRequest {
+  string user_id = 1;
+  string account_id = 2;
+  repeated string verification_amounts = 3; // For micro deposit verification
+}
+
+// Verify bank account response
+message VerifyBankAccountResponse {
+  bool verified = 1;
+  string message = 2;
+  BankAccount account = 3;
+}
+
+// Submit withdrawal request
+message SubmitWithdrawalRequest {
+  string user_id = 1;
+  string bank_account_id = 2;
+  string amount = 3; // Decimal string
+  string currency = 4;
+  string description = 5;
+}
+
+// Submit withdrawal response
+message SubmitWithdrawalResponse {
+  FiatTransaction transaction = 1;
+}
+
+// Get withdrawal status request
+message GetWithdrawalStatusRequest {
+  string user_id = 1;
+  string transaction_id = 2;
+}
+
+// Get withdrawal status response
+message GetWithdrawalStatusResponse {
+  FiatTransaction transaction = 1;
+}
+
+// List withdrawals request
+message ListWithdrawalsRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  TransactionStatus status_filter = 4;
+  int64 start_date = 5;
+  int64 end_date = 6;
+}
+
+// List withdrawals response
+message ListWithdrawalsResponse {
+  repeated FiatTransaction transactions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Cancel withdrawal request
+message CancelWithdrawalRequest {
+  string user_id = 1;
+  string transaction_id = 2;
+  string reason = 3;
+}
+
+// Cancel withdrawal response
+message CancelWithdrawalResponse {
+  FiatTransaction transaction = 1;
+}
+
+// Initiate deposit request
+message InitiateDepositRequest {
+  string user_id = 1;
+  string bank_account_id = 2;
+  string amount = 3; // Decimal string
+  string currency = 4;
+  string description = 5;
+}
+
+// Initiate deposit response
+message InitiateDepositResponse {
+  FiatTransaction transaction = 1;
+  string payment_url = 2; // For redirect-based payments
+  map<string, string> payment_instructions = 3;
+}
+
+// Get deposit status request
+message GetDepositStatusRequest {
+  string user_id = 1;
+  string transaction_id = 2;
+}
+
+// Get deposit status response
+message GetDepositStatusResponse {
+  FiatTransaction transaction = 1;
+}
+
+// List deposits request
+message ListDepositsRequest {
+  string user_id = 1;
+  int32 page_size = 2;
+  string page_token = 3;
+  TransactionStatus status_filter = 4;
+  int64 start_date = 5;
+  int64 end_date = 6;
+}
+
+// List deposits response
+message ListDepositsResponse {
+  repeated FiatTransaction transactions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Approve withdrawal request (admin)
+message ApproveWithdrawalRequest {
+  string transaction_id = 1;
+  string approver_notes = 2;
+}
+
+// Approve withdrawal response
+message ApproveWithdrawalResponse {
+  FiatTransaction transaction = 1;
+}
+
+// Reject withdrawal request (admin)
+message RejectWithdrawalRequest {
+  string transaction_id = 1;
+  string rejection_reason = 2;
+  string approver_notes = 3;
+}
+
+// Reject withdrawal response
+message RejectWithdrawalResponse {
+  FiatTransaction transaction = 1;
+}
+
+// Get transaction limits request
+message GetTransactionLimitsRequest {
+  string user_id = 1;
+}
+
+// Get transaction limits response
+message GetTransactionLimitsResponse {
+  TransactionLimits limits = 1;
+}
+
+// Update transaction limits request (admin)
+message UpdateTransactionLimitsRequest {
+  string user_id = 1;
+  TransactionLimits limits = 2;
+}
+
+// Update transaction limits response
+message UpdateTransactionLimitsResponse {
+  TransactionLimits limits = 1;
+}
+
+// Process webhook request
+message ProcessWebhookRequest {
+  PaymentProvider provider = 1;
+  string event_type = 2;
+  string signature = 3;
+  bytes payload = 4;
+  map<string, string> headers = 5;
+}
+
+// Process webhook response
+message ProcessWebhookResponse {
+  bool processed = 1;
+  string message = 2;
+}

@@ -1,0 +1,211 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// DeFi service for decentralized finance operations
+service DefiService {
+  // Get supported tokens for a blockchain
+  rpc GetSupportedTokens(GetSupportedTokensRequest) returns (GetSupportedTokensResponse);
+  
+  // Get token balance
+  rpc GetTokenBalance(GetTokenBalanceRequest) returns (GetTokenBalanceResponse);
+  
+  // Get swap quote
+  rpc GetSwapQuote(GetSwapQuoteRequest) returns (GetSwapQuoteResponse);
+  
+  // Execute token swap
+  rpc ExecuteSwap(ExecuteSwapRequest) returns (ExecuteSwapResponse);
+  
+  // Get lending markets
+  rpc GetLendingMarkets(GetLendingMarketsRequest) returns (GetLendingMarketsResponse);
+  
+  // Execute lending operation
+  rpc ExecuteLending(ExecuteLendingRequest) returns (ExecuteLendingResponse);
+  
+  // Get staking pools
+  rpc GetStakingPools(GetStakingPoolsRequest) returns (GetStakingPoolsResponse);
+  
+  // Execute staking operation
+  rpc ExecuteStaking(ExecuteStakingRequest) returns (ExecuteStakingResponse);
+}
+
+// DeFi protocols
+enum Protocol {
+  PROTOCOL_UNSPECIFIED = 0;
+  PROTOCOL_UNISWAP = 1;
+  PROTOCOL_SUSHISWAP = 2;
+  PROTOCOL_AAVE = 3;
+  PROTOCOL_COMPOUND = 4;
+  PROTOCOL_LIDO = 5;
+  PROTOCOL_RAYDIUM = 6;
+  PROTOCOL_ORCA = 7;
+  PROTOCOL_MARINADE = 8;
+}
+
+// Lending actions
+enum LendingAction {
+  LENDING_ACTION_UNSPECIFIED = 0;
+  LENDING_ACTION_SUPPLY = 1;
+  LENDING_ACTION_WITHDRAW = 2;
+  LENDING_ACTION_BORROW = 3;
+  LENDING_ACTION_REPAY = 4;
+}
+
+// Staking actions
+enum StakingAction {
+  STAKING_ACTION_UNSPECIFIED = 0;
+  STAKING_ACTION_STAKE = 1;
+  STAKING_ACTION_UNSTAKE = 2;
+  STAKING_ACTION_CLAIM_REWARDS = 3;
+}
+
+// Token representation
+message Token {
+  string address = 1;
+  string symbol = 2;
+  string name = 3;
+  int32 decimals = 4;
+  string logo_uri = 5;
+  KeyType chain = 6;
+}
+
+// Token amount
+message TokenAmount {
+  Token token = 1;
+  string amount = 2;
+}
+
+// Swap quote
+message SwapQuote {
+  TokenAmount input = 1;
+  TokenAmount output = 2;
+  string price = 3;
+  string price_impact = 4;
+  string minimum_output = 5;
+  Protocol protocol = 6;
+  string route = 7;
+  int64 deadline = 8;
+}
+
+// Lending market
+message LendingMarket {
+  Token token = 1;
+  string supply_apy = 2;
+  string borrow_apy = 3;
+  string total_supply = 4;
+  string total_borrow = 5;
+  Protocol protocol = 6;
+}
+
+// Staking pool
+message StakingPool {
+  Token token = 1;
+  string apy = 2;
+  string total_staked = 3;
+  string validator_address = 4;
+  Protocol protocol = 5;
+}
+
+// Get supported tokens request
+message GetSupportedTokensRequest {
+  KeyType key_type = 1;
+}
+
+// Get supported tokens response
+message GetSupportedTokensResponse {
+  repeated Token tokens = 1;
+}
+
+// Get token balance request
+message GetTokenBalanceRequest {
+  string address = 1;
+  string token_address = 2;
+  KeyType key_type = 3;
+}
+
+// Get token balance response
+message GetTokenBalanceResponse {
+  string balance = 1;
+  Token token = 2;
+}
+
+// Get swap quote request
+message GetSwapQuoteRequest {
+  TokenAmount input = 1;
+  Token output_token = 2;
+  double slippage = 3;
+  Protocol protocol = 4;
+}
+
+// Get swap quote response
+message GetSwapQuoteResponse {
+  SwapQuote quote = 1;
+}
+
+// Execute swap request
+message ExecuteSwapRequest {
+  SwapQuote quote = 1;
+  string wallet_address = 2;
+  string private_key = 3;
+}
+
+// Execute swap response
+message ExecuteSwapResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}
+
+// Get lending markets request
+message GetLendingMarketsRequest {
+  KeyType key_type = 1;
+  Protocol protocol = 2;
+}
+
+// Get lending markets response
+message GetLendingMarketsResponse {
+  repeated LendingMarket markets = 1;
+}
+
+// Execute lending request
+message ExecuteLendingRequest {
+  LendingAction action = 1;
+  TokenAmount amount = 2;
+  Protocol protocol = 3;
+  string wallet_address = 4;
+  string private_key = 5;
+}
+
+// Execute lending response
+message ExecuteLendingResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}
+
+// Get staking pools request
+message GetStakingPoolsRequest {
+  KeyType key_type = 1;
+  Protocol protocol = 2;
+}
+
+// Get staking pools response
+message GetStakingPoolsResponse {
+  repeated StakingPool pools = 1;
+}
+
+// Execute staking request
+message ExecuteStakingRequest {
+  StakingAction action = 1;
+  TokenAmount amount = 2;
+  Protocol protocol = 3;
+  string wallet_address = 4;
+  string private_key = 5;
+  string validator_address = 6;
+}
+
+// Execute staking response
+message ExecuteStakingResponse {
+  string transaction_hash = 1;
+  bool success = 2;
+}

@@ -1,0 +1,137 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Wallet service for managing crypto wallets
+service WalletService {
+  // Create a new wallet
+  rpc CreateWallet(CreateWalletRequest) returns (CreateWalletResponse);
+  
+  // Import wallet from mnemonic
+  rpc ImportWallet(ImportWalletRequest) returns (ImportWalletResponse);
+  
+  // Get wallet by ID
+  rpc GetWallet(GetWalletRequest) returns (GetWalletResponse);
+  
+  // List all wallets
+  rpc ListWallets(ListWalletsRequest) returns (ListWalletsResponse);
+  
+  // Delete wallet
+  rpc DeleteWallet(DeleteWalletRequest) returns (DeleteWalletResponse);
+  
+  // Derive address for a wallet
+  rpc DeriveAddress(DeriveAddressRequest) returns (DeriveAddressResponse);
+  
+  // Get addresses for a wallet
+  rpc GetAddresses(GetAddressesRequest) returns (GetAddressesResponse);
+}
+
+// Key types supported by the wallet
+enum KeyType {
+  KEY_TYPE_UNSPECIFIED = 0;
+  KEY_TYPE_ETHEREUM = 1;
+  KEY_TYPE_BITCOIN = 2;
+  KEY_TYPE_SOLANA = 3;
+}
+
+// Bitcoin network types
+enum BitcoinNetwork {
+  BITCOIN_NETWORK_UNSPECIFIED = 0;
+  BITCOIN_NETWORK_MAINNET = 1;
+  BITCOIN_NETWORK_TESTNET = 2;
+  BITCOIN_NETWORK_REGTEST = 3;
+}
+
+// Wallet representation
+message Wallet {
+  string id = 1;
+  string name = 2;
+  int64 created_at = 3;
+  repeated Address addresses = 4;
+}
+
+// Address representation
+message Address {
+  string address = 1;
+  KeyType key_type = 2;
+  string derivation_path = 3;
+  BitcoinNetwork bitcoin_network = 4;
+}
+
+// Create wallet request
+message CreateWalletRequest {
+  string name = 1;
+}
+
+// Create wallet response
+message CreateWalletResponse {
+  Wallet wallet = 1;
+  string mnemonic = 2; // Only returned on creation
+}
+
+// Import wallet request
+message ImportWalletRequest {
+  string name = 1;
+  string mnemonic = 2;
+}
+
+// Import wallet response
+message ImportWalletResponse {
+  Wallet wallet = 1;
+}
+
+// Get wallet request
+message GetWalletRequest {
+  string wallet_id = 1;
+}
+
+// Get wallet response
+message GetWalletResponse {
+  Wallet wallet = 1;
+}
+
+// List wallets request
+message ListWalletsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// List wallets response
+message ListWalletsResponse {
+  repeated Wallet wallets = 1;
+  string next_page_token = 2;
+}
+
+// Delete wallet request
+message DeleteWalletRequest {
+  string wallet_id = 1;
+}
+
+// Delete wallet response
+message DeleteWalletResponse {
+  bool success = 1;
+}
+
+// Derive address request
+message DeriveAddressRequest {
+  string wallet_id = 1;
+  KeyType key_type = 2;
+  string derivation_path = 3;
+  BitcoinNetwork bitcoin_network = 4;
+}
+
+// Derive address response
+message DeriveAddressResponse {
+  Address address = 1;
+}
+
+// Get addresses request
+message GetAddressesRequest {
+  string wallet_id = 1;
+  KeyType key_type = 2; // Optional filter
+}
+
+// Get addresses response
+message GetAddressesResponse {
+  repeated Address addresses = 1;
+}

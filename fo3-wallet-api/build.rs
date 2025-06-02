@@ -1,0 +1,24 @@
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    tonic_build::configure()
+        .build_server(true)
+        .build_client(false)
+        .compile(
+            &[
+                "../proto/wallet.proto",
+                "../proto/transaction.proto",
+                "../proto/defi.proto",
+                "../proto/solana.proto",
+                "../proto/health.proto",
+                "../proto/auth.proto",
+                "../proto/events.proto",
+                "../proto/kyc.proto",
+                "../proto/fiat_gateway.proto",
+                "../proto/pricing.proto",
+                "../proto/notifications.proto",
+                "../proto/cards.proto",
+                "../proto/spending_insights.proto",
+            ],
+            &["../proto"],
+        )?;
+    Ok(())
+}

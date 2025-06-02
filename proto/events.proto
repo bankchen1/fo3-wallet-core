@@ -1,0 +1,185 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+import "transaction.proto";
+import "defi.proto";
+import "solana.proto";
+
+// Event streaming service for real-time notifications
+service EventService {
+  // Subscribe to wallet events
+  rpc SubscribeWalletEvents(SubscribeWalletEventsRequest) returns (stream WalletEvent);
+  
+  // Subscribe to transaction events
+  rpc SubscribeTransactionEvents(SubscribeTransactionEventsRequest) returns (stream TransactionEvent);
+  
+  // Subscribe to DeFi events
+  rpc SubscribeDefiEvents(SubscribeDefiEventsRequest) returns (stream DefiEvent);
+  
+  // Subscribe to Solana events
+  rpc SubscribeSolanaEvents(SubscribeSolanaEventsRequest) returns (stream SolanaEvent);
+  
+  // Subscribe to all events for a user
+  rpc SubscribeAllEvents(SubscribeAllEventsRequest) returns (stream Event);
+}
+
+// Event types
+enum EventType {
+  EVENT_TYPE_UNSPECIFIED = 0;
+  EVENT_TYPE_WALLET_CREATED = 1;
+  EVENT_TYPE_WALLET_UPDATED = 2;
+  EVENT_TYPE_WALLET_DELETED = 3;
+  EVENT_TYPE_ADDRESS_DERIVED = 4;
+  EVENT_TYPE_BALANCE_CHANGED = 5;
+  EVENT_TYPE_TRANSACTION_PENDING = 6;
+  EVENT_TYPE_TRANSACTION_CONFIRMED = 7;
+  EVENT_TYPE_TRANSACTION_FAILED = 8;
+  EVENT_TYPE_DEFI_SWAP_EXECUTED = 9;
+  EVENT_TYPE_DEFI_POSITION_CHANGED = 10;
+  EVENT_TYPE_NFT_RECEIVED = 11;
+  EVENT_TYPE_NFT_SENT = 12;
+  EVENT_TYPE_STAKING_REWARD = 13;
+}
+
+// Base event structure
+message Event {
+  string id = 1;
+  EventType type = 2;
+  int64 timestamp = 3;
+  string user_id = 4;
+  string wallet_id = 5;
+  oneof event_data {
+    WalletEvent wallet_event = 6;
+    TransactionEvent transaction_event = 7;
+    DefiEvent defi_event = 8;
+    SolanaEvent solana_event = 9;
+  }
+}
+
+// Wallet-related events
+message WalletEvent {
+  EventType type = 1;
+  Wallet wallet = 2;
+  Address address = 3; // For address derivation events
+  BalanceChange balance_change = 4; // For balance change events
+}
+
+// Balance change details
+message BalanceChange {
+  string token_address = 1;
+  string token_symbol = 2;
+  string previous_balance = 3;
+  string new_balance = 4;
+  string change_amount = 5;
+  KeyType chain = 6;
+}
+
+// Transaction-related events
+message TransactionEvent {
+  EventType type = 1;
+  Transaction transaction = 2;
+  string previous_status = 3; // For status change events
+  int32 confirmations = 4;
+}
+
+// DeFi-related events
+message DefiEvent {
+  EventType type = 1;
+  Protocol protocol = 2;
+  oneof event_data {
+    SwapExecutedEvent swap_executed = 3;
+    PositionChangedEvent position_changed = 4;
+    StakingRewardEvent staking_reward = 5;
+  }
+}
+
+// Swap execution event
+message SwapExecutedEvent {
+  TokenAmount input = 1;
+  TokenAmount output = 2;
+  string transaction_hash = 3;
+  string wallet_address = 4;
+}
+
+// Position change event
+message PositionChangedEvent {
+  string position_id = 1;
+  TokenAmount previous_amount = 2;
+  TokenAmount new_amount = 3;
+  string action = 4; // "supply", "withdraw", "borrow", "repay"
+}
+
+// Staking reward event
+message StakingRewardEvent {
+  string validator_address = 1;
+  TokenAmount reward_amount = 2;
+  string stake_account = 3;
+}
+
+// Solana-specific events
+message SolanaEvent {
+  EventType type = 1;
+  oneof event_data {
+    NftTransferEvent nft_transfer = 2;
+    TokenTransferEvent token_transfer = 3;
+    StakingEvent staking_event = 4;
+  }
+}
+
+// NFT transfer event
+message NftTransferEvent {
+  string mint = 1;
+  string from_address = 2;
+  string to_address = 3;
+  string transaction_hash = 4;
+  NftMetadata metadata = 5;
+}
+
+// Token transfer event
+message TokenTransferEvent {
+  string token_mint = 1;
+  string from_address = 2;
+  string to_address = 3;
+  string amount = 4;
+  int32 decimals = 5;
+  string transaction_hash = 6;
+}
+
+// Staking event
+message StakingEvent {
+  string stake_account = 1;
+  string validator_address = 2;
+  string amount = 3;
+  string action = 4; // "stake", "unstake", "reward"
+  string transaction_hash = 5;
+}
+
+// Subscription requests
+message SubscribeWalletEventsRequest {
+  repeated string wallet_ids = 1; // Empty means all wallets for user
+  repeated EventType event_types = 2; // Empty means all event types
+}
+
+message SubscribeTransactionEventsRequest {
+  repeated string wallet_ids = 1;
+  repeated KeyType chains = 2;
+  repeated EventType event_types = 3;
+}
+
+message SubscribeDefiEventsRequest {
+  repeated string wallet_ids = 1;
+  repeated Protocol protocols = 2;
+  repeated EventType event_types = 3;
+}
+
+message SubscribeSolanaEventsRequest {
+  repeated string wallet_ids = 1;
+  repeated EventType event_types = 2;
+}
+
+message SubscribeAllEventsRequest {
+  repeated string wallet_ids = 1; // Empty means all wallets for user
+  repeated EventType event_types = 2; // Empty means all event types
+}

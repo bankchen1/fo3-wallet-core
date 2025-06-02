@@ -1,0 +1,18 @@
+[package]
+name = "fo3-wallet-grpc-examples"
+version = "0.1.0"
+edition = "2021"
+description = "gRPC client examples for FO3 Wallet Core"
+
+[build-dependencies]
+tonic-build = { workspace = true }
+
+[dependencies]
+tokio = { workspace = true }
+tonic = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
+
+[[bin]]
+name = "grpc_client"
+path = "grpc_client.rs"

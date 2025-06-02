@@ -1,0 +1,353 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Card service for virtual card management and transactions
+service CardService {
+  // Core card operations
+  rpc IssueVirtualCard(IssueCardRequest) returns (IssueCardResponse);
+  rpc GetCard(GetCardRequest) returns (GetCardResponse);
+  rpc ListCards(ListCardsRequest) returns (ListCardsResponse);
+  rpc FreezeCard(FreezeCardRequest) returns (FreezeCardResponse);
+  rpc UnfreezeCard(UnfreezeCardRequest) returns (UnfreezeCardResponse);
+  rpc CancelCard(CancelCardRequest) returns (CancelCardResponse);
+  
+  // Card transaction operations
+  rpc GetCardTransactions(GetCardTransactionsRequest) returns (GetCardTransactionsResponse);
+  rpc SimulateTransaction(SimulateTransactionRequest) returns (SimulateTransactionResponse);
+  
+  // Card management operations
+  rpc TopUpCard(TopUpCardRequest) returns (TopUpCardResponse);
+  rpc UpdateCardLimits(UpdateCardLimitsRequest) returns (UpdateCardLimitsResponse);
+  rpc UpdateCardPin(UpdateCardPinRequest) returns (UpdateCardPinResponse);
+  
+  // Admin operations
+  rpc GetCardMetrics(GetCardMetricsRequest) returns (GetCardMetricsResponse);
+  rpc ListAllCards(ListAllCardsRequest) returns (ListAllCardsResponse);
+}
+
+// Card status enumeration
+enum CardStatus {
+  CARD_STATUS_UNSPECIFIED = 0;
+  CARD_STATUS_ACTIVE = 1;       // Card is active and can be used
+  CARD_STATUS_FROZEN = 2;       // Card is temporarily frozen by user
+  CARD_STATUS_EXPIRED = 3;      // Card has expired
+  CARD_STATUS_CANCELLED = 4;    // Card has been permanently cancelled
+  CARD_STATUS_PENDING = 5;      // Card issuance is pending
+  CARD_STATUS_BLOCKED = 6;      // Card is blocked due to security concerns
+}
+
+// Card type enumeration
+enum CardType {
+  CARD_TYPE_UNSPECIFIED = 0;
+  CARD_TYPE_VIRTUAL = 1;        // Virtual card for online transactions
+  CARD_TYPE_PHYSICAL = 2;       // Physical card (future implementation)
+}
+
+// Transaction status for card transactions
+enum CardTransactionStatus {
+  CARD_TRANSACTION_STATUS_UNSPECIFIED = 0;
+  CARD_TRANSACTION_STATUS_PENDING = 1;
+  CARD_TRANSACTION_STATUS_APPROVED = 2;
+  CARD_TRANSACTION_STATUS_DECLINED = 3;
+  CARD_TRANSACTION_STATUS_REVERSED = 4;
+  CARD_TRANSACTION_STATUS_SETTLED = 5;
+}
+
+// Transaction type for card transactions
+enum CardTransactionType {
+  CARD_TRANSACTION_TYPE_UNSPECIFIED = 0;
+  CARD_TRANSACTION_TYPE_PURCHASE = 1;
+  CARD_TRANSACTION_TYPE_REFUND = 2;
+  CARD_TRANSACTION_TYPE_AUTHORIZATION = 3;
+  CARD_TRANSACTION_TYPE_TOP_UP = 4;
+  CARD_TRANSACTION_TYPE_FEE = 5;
+}
+
+// Merchant category codes for transaction categorization
+enum MerchantCategory {
+  MERCHANT_CATEGORY_UNSPECIFIED = 0;
+  MERCHANT_CATEGORY_GROCERY = 1;
+  MERCHANT_CATEGORY_RESTAURANT = 2;
+  MERCHANT_CATEGORY_GAS_STATION = 3;
+  MERCHANT_CATEGORY_RETAIL = 4;
+  MERCHANT_CATEGORY_ENTERTAINMENT = 5;
+  MERCHANT_CATEGORY_TRAVEL = 6;
+  MERCHANT_CATEGORY_HEALTHCARE = 7;
+  MERCHANT_CATEGORY_EDUCATION = 8;
+  MERCHANT_CATEGORY_UTILITIES = 9;
+  MERCHANT_CATEGORY_OTHER = 10;
+}
+
+// Card spending limits
+message CardLimits {
+  string daily_limit = 1;          // Daily spending limit in USD
+  string monthly_limit = 2;        // Monthly spending limit in USD
+  string per_transaction_limit = 3; // Per-transaction limit in USD
+  string atm_daily_limit = 4;      // Daily ATM withdrawal limit
+  int32 transaction_count_daily = 5; // Max transactions per day
+  int32 transaction_count_monthly = 6; // Max transactions per month
+}
+
+// Merchant information for transactions
+message MerchantInfo {
+  string name = 1;                 // Merchant name
+  string category = 2;             // Merchant category
+  MerchantCategory category_code = 3; // Standardized category code
+  string location = 4;             // Merchant location
+  string country = 5;              // Merchant country
+  string mcc = 6;                  // Merchant Category Code (4-digit)
+}
+
+// Card entity
+message Card {
+  string id = 1;                   // Unique card identifier
+  string user_id = 2;              // Owner user ID
+  CardType type = 3;               // Card type (virtual/physical)
+  CardStatus status = 4;           // Current card status
+  string masked_number = 5;        // Masked card number (****-****-****-1234)
+  string cardholder_name = 6;      // Name on the card
+  string expiry_month = 7;         // Expiry month (MM)
+  string expiry_year = 8;          // Expiry year (YY)
+  string currency = 9;             // Card currency (USD, EUR, etc.)
+  string balance = 10;             // Current card balance
+  CardLimits limits = 11;          // Spending limits
+  string design_id = 12;           // Card design identifier
+  string linked_account_id = 13;   // Linked fiat account for funding
+  bool is_primary = 14;            // Whether this is the primary card
+  int64 created_at = 15;           // Creation timestamp
+  int64 updated_at = 16;           // Last update timestamp
+  int64 expires_at = 17;           // Card expiration timestamp
+  int64 frozen_at = 18;            // When card was frozen (if applicable)
+  string frozen_reason = 19;       // Reason for freezing
+}
+
+// Card transaction entity
+message CardTransaction {
+  string id = 1;                   // Unique transaction identifier
+  string card_id = 2;              // Associated card ID
+  string user_id = 3;              // Card owner user ID
+  CardTransactionType type = 4;    // Transaction type
+  CardTransactionStatus status = 5; // Transaction status
+  string amount = 6;               // Transaction amount
+  string currency = 7;             // Transaction currency
+  string fee_amount = 8;           // Transaction fee
+  string net_amount = 9;           // Net amount (amount + fee)
+  MerchantInfo merchant = 10;      // Merchant information
+  string description = 11;         // Transaction description
+  string reference_number = 12;    // External reference number
+  string authorization_code = 13;  // Authorization code
+  map<string, string> metadata = 14; // Additional transaction data
+  int64 created_at = 15;           // Transaction timestamp
+  int64 authorized_at = 16;        // Authorization timestamp
+  int64 settled_at = 17;           // Settlement timestamp
+  string decline_reason = 18;      // Reason for decline (if applicable)
+}
+
+// Card metrics for admin dashboard
+message CardMetrics {
+  int64 total_cards_issued = 1;    // Total cards issued
+  int64 active_cards = 2;          // Currently active cards
+  int64 frozen_cards = 3;          // Currently frozen cards
+  int64 cancelled_cards = 4;       // Cancelled cards
+  string total_transaction_volume = 5; // Total transaction volume
+  int64 total_transactions = 6;    // Total number of transactions
+  string average_transaction_amount = 7; // Average transaction amount
+  int64 declined_transactions = 8; // Number of declined transactions
+  double decline_rate = 9;         // Transaction decline rate
+  map<string, int64> transactions_by_category = 10; // Transactions by merchant category
+  map<string, string> volume_by_currency = 11; // Volume by currency
+}
+
+// Issue virtual card request
+message IssueCardRequest {
+  string cardholder_name = 1;      // Name for the card
+  string currency = 2;             // Card currency (default: USD)
+  CardLimits limits = 3;           // Initial spending limits
+  string design_id = 4;            // Card design preference
+  string linked_account_id = 5;    // Fiat account to link for funding
+  bool is_primary = 6;             // Set as primary card
+}
+
+// Issue virtual card response
+message IssueCardResponse {
+  Card card = 1;                   // Issued card details
+  string full_card_number = 2;     // Full card number (returned only once)
+  string cvv = 3;                  // Card CVV (returned only once)
+  string pin = 4;                  // Card PIN (returned only once)
+}
+
+// Get card request
+message GetCardRequest {
+  string card_id = 1;              // Card ID to retrieve
+}
+
+// Get card response
+message GetCardResponse {
+  Card card = 1;                   // Card details
+}
+
+// List cards request
+message ListCardsRequest {
+  CardStatus status = 1;           // Filter by status (optional)
+  CardType type = 2;               // Filter by type (optional)
+  int32 page_size = 3;             // Number of cards per page
+  string page_token = 4;           // Pagination token
+}
+
+// List cards response
+message ListCardsResponse {
+  repeated Card cards = 1;         // List of cards
+  string next_page_token = 2;      // Next page token
+  int64 total_count = 3;           // Total number of cards
+}
+
+// Freeze card request
+message FreezeCardRequest {
+  string card_id = 1;              // Card ID to freeze
+  string reason = 2;               // Reason for freezing
+  bool require_2fa = 3;            // Whether to require 2FA verification
+  string verification_code = 4;    // 2FA verification code
+}
+
+// Freeze card response
+message FreezeCardResponse {
+  Card card = 1;                   // Updated card details
+  bool success = 2;                // Operation success status
+}
+
+// Unfreeze card request
+message UnfreezeCardRequest {
+  string card_id = 1;              // Card ID to unfreeze
+  bool require_2fa = 2;            // Whether to require 2FA verification
+  string verification_code = 3;    // 2FA verification code
+}
+
+// Unfreeze card response
+message UnfreezeCardResponse {
+  Card card = 1;                   // Updated card details
+  bool success = 2;                // Operation success status
+}
+
+// Cancel card request
+message CancelCardRequest {
+  string card_id = 1;              // Card ID to cancel
+  string reason = 2;               // Reason for cancellation
+  bool require_2fa = 3;            // Whether to require 2FA verification
+  string verification_code = 4;    // 2FA verification code
+}
+
+// Cancel card response
+message CancelCardResponse {
+  Card card = 1;                   // Updated card details
+  bool success = 2;                // Operation success status
+}
+
+// Get card transactions request
+message GetCardTransactionsRequest {
+  string card_id = 1;              // Card ID to get transactions for
+  CardTransactionStatus status = 2; // Filter by status (optional)
+  CardTransactionType type = 3;    // Filter by type (optional)
+  int64 start_date = 4;            // Start date filter (timestamp)
+  int64 end_date = 5;              // End date filter (timestamp)
+  int32 page_size = 6;             // Number of transactions per page
+  string page_token = 7;           // Pagination token
+}
+
+// Get card transactions response
+message GetCardTransactionsResponse {
+  repeated CardTransaction transactions = 1; // List of transactions
+  string next_page_token = 2;      // Next page token
+  int64 total_count = 3;           // Total number of transactions
+  string total_amount = 4;         // Total amount of filtered transactions
+}
+
+// Simulate transaction request
+message SimulateTransactionRequest {
+  string card_id = 1;              // Card to simulate transaction on
+  string amount = 2;               // Transaction amount
+  string currency = 3;             // Transaction currency
+  MerchantInfo merchant = 4;       // Merchant information
+  string description = 5;          // Transaction description
+  bool is_authorization_only = 6;  // Whether this is authorization only
+}
+
+// Simulate transaction response
+message SimulateTransactionResponse {
+  CardTransaction transaction = 1;  // Simulated transaction details
+  bool approved = 2;               // Whether transaction would be approved
+  string decline_reason = 3;       // Reason for decline (if applicable)
+  string authorization_code = 4;   // Authorization code (if approved)
+}
+
+// Top up card request
+message TopUpCardRequest {
+  string card_id = 1;              // Card ID to top up
+  string amount = 2;               // Amount to add to card
+  string currency = 3;             // Currency of the amount
+  string funding_source_id = 4;    // Fiat account to fund from
+}
+
+// Top up card response
+message TopUpCardResponse {
+  Card card = 1;                   // Updated card with new balance
+  CardTransaction transaction = 2;  // Top-up transaction record
+  bool success = 3;                // Operation success status
+}
+
+// Update card limits request
+message UpdateCardLimitsRequest {
+  string card_id = 1;              // Card ID to update limits for
+  CardLimits limits = 2;           // New spending limits
+  bool require_2fa = 3;            // Whether to require 2FA verification
+  string verification_code = 4;    // 2FA verification code
+}
+
+// Update card limits response
+message UpdateCardLimitsResponse {
+  Card card = 1;                   // Updated card details
+  bool success = 2;                // Operation success status
+}
+
+// Update card PIN request
+message UpdateCardPinRequest {
+  string card_id = 1;              // Card ID to update PIN for
+  string current_pin = 2;          // Current PIN for verification
+  string new_pin = 3;              // New PIN (4-6 digits)
+  bool require_2fa = 4;            // Whether to require 2FA verification
+  string verification_code = 5;    // 2FA verification code
+}
+
+// Update card PIN response
+message UpdateCardPinResponse {
+  bool success = 1;                // Operation success status
+  string message = 2;              // Success/error message
+}
+
+// Get card metrics request (admin only)
+message GetCardMetricsRequest {
+  int64 start_date = 1;            // Start date for metrics (timestamp)
+  int64 end_date = 2;              // End date for metrics (timestamp)
+  string currency = 3;             // Filter by currency (optional)
+}
+
+// Get card metrics response
+message GetCardMetricsResponse {
+  CardMetrics metrics = 1;         // Card metrics data
+}
+
+// List all cards request (admin only)
+message ListAllCardsRequest {
+  string user_id = 1;              // Filter by user ID (optional)
+  CardStatus status = 2;           // Filter by status (optional)
+  CardType type = 3;               // Filter by type (optional)
+  int32 page_size = 4;             // Number of cards per page
+  string page_token = 5;           // Pagination token
+}
+
+// List all cards response
+message ListAllCardsResponse {
+  repeated Card cards = 1;         // List of cards
+  string next_page_token = 2;      // Next page token
+  int64 total_count = 3;           // Total number of cards
+}

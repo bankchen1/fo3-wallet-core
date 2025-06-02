@@ -1,0 +1,186 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Authentication service for managing API keys and JWT tokens
+service AuthService {
+  // Authenticate with username/password and get JWT token
+  rpc Login(LoginRequest) returns (LoginResponse);
+  
+  // Refresh JWT token using refresh token
+  rpc RefreshToken(RefreshTokenRequest) returns (RefreshTokenResponse);
+  
+  // Logout and invalidate tokens
+  rpc Logout(LogoutRequest) returns (LogoutResponse);
+  
+  // Create API key for programmatic access
+  rpc CreateApiKey(CreateApiKeyRequest) returns (CreateApiKeyResponse);
+  
+  // List API keys for user
+  rpc ListApiKeys(ListApiKeysRequest) returns (ListApiKeysResponse);
+  
+  // Revoke API key
+  rpc RevokeApiKey(RevokeApiKeyRequest) returns (RevokeApiKeyResponse);
+  
+  // Rotate API key
+  rpc RotateApiKey(RotateApiKeyRequest) returns (RotateApiKeyResponse);
+}
+
+// User roles for RBAC
+enum UserRole {
+  USER_ROLE_UNSPECIFIED = 0;
+  USER_ROLE_VIEWER = 1;      // Read-only access
+  USER_ROLE_USER = 2;        // Standard user operations
+  USER_ROLE_ADMIN = 3;       // Administrative access
+  USER_ROLE_SUPER_ADMIN = 4; // Full system access
+}
+
+// API key permissions
+enum Permission {
+  PERMISSION_UNSPECIFIED = 0;
+  PERMISSION_WALLET_READ = 1;
+  PERMISSION_WALLET_WRITE = 2;
+  PERMISSION_TRANSACTION_READ = 3;
+  PERMISSION_TRANSACTION_WRITE = 4;
+  PERMISSION_DEFI_READ = 5;
+  PERMISSION_DEFI_WRITE = 6;
+  PERMISSION_SOLANA_READ = 7;
+  PERMISSION_SOLANA_WRITE = 8;
+  PERMISSION_ADMIN = 9;
+  // KYC permissions
+  PERMISSION_KYC_SUBMIT = 10;     // Users can submit their own KYC
+  PERMISSION_KYC_VIEW = 11;       // Users can view their own KYC status
+  PERMISSION_KYC_ADMIN = 12;      // Admins can review and approve/reject submissions
+  // Fiat Gateway permissions
+  PERMISSION_FIAT_DEPOSIT = 13;   // Users can initiate deposits
+  PERMISSION_FIAT_WITHDRAW = 14;  // Users can request withdrawals
+  PERMISSION_FIAT_ADMIN = 15;     // Admins can approve/reject fiat transactions
+  // Pricing service permissions
+  PERMISSION_PRICING_READ = 16;   // Users can read price data and supported symbols
+  PERMISSION_PRICING_ADMIN = 17;  // Admins can manage price feeds and access metrics
+  // Notification service permissions
+  PERMISSION_NOTIFICATION_READ = 18;   // Users can read their own notifications and preferences
+  PERMISSION_NOTIFICATION_ADMIN = 19;  // Admins can broadcast notifications and access metrics
+  // Card service permissions
+  PERMISSION_CARD_READ = 20;           // Users can view their own cards and transactions
+  PERMISSION_CARD_ADMIN = 21;          // Admins can manage card operations and limits
+  // Spending insights service permissions
+  PERMISSION_SPENDING_READ = 22;       // Users can view their own spending insights and budgets
+  PERMISSION_SPENDING_ADMIN = 23;      // Admins can view platform-wide spending analytics
+}
+
+// Rate limit configuration
+message RateLimit {
+  int32 requests_per_minute = 1;
+  int32 burst_limit = 2;
+  int32 daily_limit = 3;
+}
+
+// User representation
+message User {
+  string id = 1;
+  string username = 2;
+  string email = 3;
+  UserRole role = 4;
+  bool is_active = 5;
+  int64 created_at = 6;
+  int64 last_login = 7;
+  RateLimit rate_limit = 8;
+}
+
+// API key representation
+message ApiKey {
+  string id = 1;
+  string name = 2;
+  string key_prefix = 3; // First 8 characters for identification
+  repeated Permission permissions = 4;
+  RateLimit rate_limit = 5;
+  bool is_active = 6;
+  int64 created_at = 7;
+  int64 last_used = 8;
+  int64 expires_at = 9;
+}
+
+// Login request
+message LoginRequest {
+  string username = 1;
+  string password = 2;
+  bool remember_me = 3;
+}
+
+// Login response
+message LoginResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_at = 3;
+  User user = 4;
+}
+
+// Refresh token request
+message RefreshTokenRequest {
+  string refresh_token = 1;
+}
+
+// Refresh token response
+message RefreshTokenResponse {
+  string access_token = 1;
+  string refresh_token = 2;
+  int64 expires_at = 3;
+}
+
+// Logout request
+message LogoutRequest {
+  string refresh_token = 1;
+}
+
+// Logout response
+message LogoutResponse {
+  bool success = 1;
+}
+
+// Create API key request
+message CreateApiKeyRequest {
+  string name = 1;
+  repeated Permission permissions = 2;
+  RateLimit rate_limit = 3;
+  int64 expires_at = 4; // Optional expiration
+}
+
+// Create API key response
+message CreateApiKeyResponse {
+  ApiKey api_key = 1;
+  string secret_key = 2; // Full key returned only once
+}
+
+// List API keys request
+message ListApiKeysRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+}
+
+// List API keys response
+message ListApiKeysResponse {
+  repeated ApiKey api_keys = 1;
+  string next_page_token = 2;
+}
+
+// Revoke API key request
+message RevokeApiKeyRequest {
+  string api_key_id = 1;
+}
+
+// Revoke API key response
+message RevokeApiKeyResponse {
+  bool success = 1;
+}
+
+// Rotate API key request
+message RotateApiKeyRequest {
+  string api_key_id = 1;
+}
+
+// Rotate API key response
+message RotateApiKeyResponse {
+  string new_secret_key = 1;
+  ApiKey api_key = 2;
+}

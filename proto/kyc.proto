@@ -1,0 +1,209 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// KYC (Know Your Customer) service for identity verification
+service KycService {
+  // Submit KYC information for verification
+  rpc SubmitKyc(SubmitKycRequest) returns (SubmitKycResponse);
+  
+  // Get KYC status for a wallet
+  rpc GetKycStatus(GetKycStatusRequest) returns (GetKycStatusResponse);
+  
+  // List KYC submissions (admin only)
+  rpc ListKycSubmissions(ListKycSubmissionsRequest) returns (ListKycSubmissionsResponse);
+  
+  // Approve KYC submission (admin only)
+  rpc ApproveKyc(ApproveKycRequest) returns (ApproveKycResponse);
+  
+  // Reject KYC submission (admin only)
+  rpc RejectKyc(RejectKycRequest) returns (RejectKycResponse);
+  
+  // Update KYC documents
+  rpc UpdateKycDocuments(UpdateKycDocumentsRequest) returns (UpdateKycDocumentsResponse);
+  
+  // Upload document for KYC
+  rpc UploadDocument(stream UploadDocumentRequest) returns (UploadDocumentResponse);
+  
+  // Download document (admin only)
+  rpc DownloadDocument(DownloadDocumentRequest) returns (stream DownloadDocumentResponse);
+}
+
+// KYC status enumeration
+enum KycStatus {
+  KYC_STATUS_UNSPECIFIED = 0;
+  KYC_STATUS_PENDING = 1;        // Initial submission, awaiting review
+  KYC_STATUS_UNDER_REVIEW = 2;   // Being reviewed by admin
+  KYC_STATUS_APPROVED = 3;       // Approved and verified
+  KYC_STATUS_REJECTED = 4;       // Rejected with reason
+  KYC_STATUS_REQUIRES_UPDATE = 5; // Needs additional information
+}
+
+// Document types for KYC verification
+enum DocumentType {
+  DOCUMENT_TYPE_UNSPECIFIED = 0;
+  DOCUMENT_TYPE_GOVERNMENT_ID = 1;    // Passport, driver's license, national ID
+  DOCUMENT_TYPE_PROOF_OF_ADDRESS = 2; // Utility bill, bank statement
+  DOCUMENT_TYPE_SELFIE = 3;           // Selfie with ID document
+  DOCUMENT_TYPE_BANK_STATEMENT = 4;   // Bank statement for proof of funds
+  DOCUMENT_TYPE_OTHER = 5;            // Other supporting documents
+}
+
+// Personal information for KYC
+message PersonalInfo {
+  string first_name = 1;
+  string last_name = 2;
+  string date_of_birth = 3;  // YYYY-MM-DD format
+  string nationality = 4;
+  string country_of_residence = 5;
+  Address address = 6;
+}
+
+// Address information
+message Address {
+  string street_address = 1;
+  string city = 2;
+  string state_province = 3;
+  string postal_code = 4;
+  string country = 5;
+}
+
+// Document metadata
+message Document {
+  string id = 1;
+  DocumentType type = 2;
+  string filename = 3;
+  string content_type = 4;
+  int64 size_bytes = 5;
+  string hash = 6;           // SHA-256 hash for integrity
+  int64 uploaded_at = 7;
+  bool is_encrypted = 8;
+}
+
+// KYC submission data
+message KycSubmission {
+  string id = 1;
+  string wallet_id = 2;
+  KycStatus status = 3;
+  PersonalInfo personal_info = 4;
+  repeated Document documents = 5;
+  int64 submitted_at = 6;
+  int64 reviewed_at = 7;
+  string reviewer_id = 8;
+  string reviewer_notes = 9;
+  string rejection_reason = 10;
+  int64 updated_at = 11;
+}
+
+// Submit KYC request
+message SubmitKycRequest {
+  string wallet_id = 1;
+  PersonalInfo personal_info = 2;
+  repeated string document_ids = 3; // References to uploaded documents
+}
+
+// Submit KYC response
+message SubmitKycResponse {
+  KycSubmission submission = 1;
+}
+
+// Get KYC status request
+message GetKycStatusRequest {
+  string wallet_id = 1;
+}
+
+// Get KYC status response
+message GetKycStatusResponse {
+  KycSubmission submission = 1;
+}
+
+// List KYC submissions request (admin only)
+message ListKycSubmissionsRequest {
+  int32 page_size = 1;
+  string page_token = 2;
+  KycStatus status_filter = 3; // Optional filter by status
+  string wallet_id_filter = 4; // Optional filter by wallet ID
+}
+
+// List KYC submissions response
+message ListKycSubmissionsResponse {
+  repeated KycSubmission submissions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Approve KYC request (admin only)
+message ApproveKycRequest {
+  string submission_id = 1;
+  string reviewer_notes = 2; // Optional notes from reviewer
+}
+
+// Approve KYC response
+message ApproveKycResponse {
+  KycSubmission submission = 1;
+}
+
+// Reject KYC request (admin only)
+message RejectKycRequest {
+  string submission_id = 1;
+  string rejection_reason = 2;
+  string reviewer_notes = 3; // Optional additional notes
+}
+
+// Reject KYC response
+message RejectKycResponse {
+  KycSubmission submission = 1;
+}
+
+// Update KYC documents request
+message UpdateKycDocumentsRequest {
+  string submission_id = 1;
+  repeated string document_ids = 2; // New document IDs to add
+  repeated string remove_document_ids = 3; // Document IDs to remove
+}
+
+// Update KYC documents response
+message UpdateKycDocumentsResponse {
+  KycSubmission submission = 1;
+}
+
+// Upload document request (streaming)
+message UploadDocumentRequest {
+  oneof data {
+    DocumentMetadata metadata = 1;
+    bytes chunk = 2;
+  }
+}
+
+// Document metadata for upload
+message DocumentMetadata {
+  DocumentType type = 1;
+  string filename = 2;
+  string content_type = 3;
+  int64 size_bytes = 4;
+  string wallet_id = 5; // Associated wallet ID
+}
+
+// Upload document response
+message UploadDocumentResponse {
+  string document_id = 1;
+  string upload_url = 2; // Optional: for direct upload to storage
+}
+
+// Download document request (admin only)
+message DownloadDocumentRequest {
+  string document_id = 1;
+}
+
+// Download document response (streaming)
+message DownloadDocumentResponse {
+  oneof data {
+    DocumentInfo info = 1;
+    bytes chunk = 2;
+  }
+}
+
+// Document info for download
+message DocumentInfo {
+  Document document = 1;
+}

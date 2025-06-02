@@ -1,0 +1,125 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// Transaction service for handling blockchain transactions
+service TransactionService {
+  // Create and send a transaction
+  rpc SendTransaction(SendTransactionRequest) returns (SendTransactionResponse);
+  
+  // Get transaction details
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+  
+  // Sign a transaction
+  rpc SignTransaction(SignTransactionRequest) returns (SignTransactionResponse);
+  
+  // Broadcast a signed transaction
+  rpc BroadcastTransaction(BroadcastTransactionRequest) returns (BroadcastTransactionResponse);
+  
+  // Get transaction history for an address
+  rpc GetTransactionHistory(GetTransactionHistoryRequest) returns (GetTransactionHistoryResponse);
+}
+
+// Transaction status
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING = 1;
+  TRANSACTION_STATUS_CONFIRMED = 2;
+  TRANSACTION_STATUS_FAILED = 3;
+}
+
+// Transaction representation
+message Transaction {
+  string hash = 1;
+  KeyType key_type = 2;
+  string from_address = 3;
+  string to_address = 4;
+  string value = 5;
+  string gas_price = 6;
+  string gas_limit = 7;
+  string nonce = 8;
+  bytes data = 9;
+  TransactionStatus status = 10;
+  int64 timestamp = 11;
+  string block_hash = 12;
+  int64 block_number = 13;
+  int32 transaction_index = 14;
+  string gas_used = 15;
+  string fee = 16;
+}
+
+// Send transaction request
+message SendTransactionRequest {
+  KeyType key_type = 1;
+  string from_address = 2;
+  string to_address = 3;
+  string value = 4;
+  string gas_price = 5;
+  string gas_limit = 6;
+  string nonce = 7;
+  bytes data = 8;
+  string private_key = 9; // For signing
+}
+
+// Send transaction response
+message SendTransactionResponse {
+  string transaction_hash = 1;
+  TransactionStatus status = 2;
+}
+
+// Get transaction request
+message GetTransactionRequest {
+  KeyType key_type = 1;
+  string transaction_hash = 2;
+}
+
+// Get transaction response
+message GetTransactionResponse {
+  Transaction transaction = 1;
+}
+
+// Sign transaction request
+message SignTransactionRequest {
+  KeyType key_type = 1;
+  string from_address = 2;
+  string to_address = 3;
+  string value = 4;
+  string gas_price = 5;
+  string gas_limit = 6;
+  string nonce = 7;
+  bytes data = 8;
+  string private_key = 9;
+}
+
+// Sign transaction response
+message SignTransactionResponse {
+  bytes signed_transaction = 1;
+}
+
+// Broadcast transaction request
+message BroadcastTransactionRequest {
+  KeyType key_type = 1;
+  bytes signed_transaction = 2;
+}
+
+// Broadcast transaction response
+message BroadcastTransactionResponse {
+  string transaction_hash = 1;
+  TransactionStatus status = 2;
+}
+
+// Get transaction history request
+message GetTransactionHistoryRequest {
+  KeyType key_type = 1;
+  string address = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+// Get transaction history response
+message GetTransactionHistoryResponse {
+  repeated Transaction transactions = 1;
+  string next_page_token = 2;
+}

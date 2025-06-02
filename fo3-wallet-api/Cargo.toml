@@ -2,9 +2,12 @@
 name = "fo3-wallet-api"
 version = "0.1.0"
 edition = "2021"
-description = "REST API server for FO3 multi-chain wallet and DeFi SDK"
+description = "gRPC API server for FO3 multi-chain wallet and DeFi SDK"
 authors = ["FO3 Team"]
 license = "MIT"
+
+[build-dependencies]
+tonic-build = { workspace = true }
 
 [dependencies]
 # Internal dependencies
@@ -18,10 +21,12 @@ serde_json = { workspace = true }
 # Async runtime
 tokio = { workspace = true }
 
-# Web server
-axum = { workspace = true }
+# gRPC
+tonic = { workspace = true }
+tonic-web = { workspace = true }
+prost = { workspace = true }
+prost-types = { workspace = true }
 tower = { workspace = true }
-tower-http = { workspace = true }
 
 # Error handling
 anyhow = { workspace = true }
@@ -33,6 +38,61 @@ tracing-subscriber = { workspace = true }
 
 # Random number generation
 rand = { workspace = true }
+
+# Authentication and security
+jsonwebtoken = { workspace = true }
+bcrypt = { workspace = true }
+uuid = { workspace = true }
+
+# WebSocket support
+axum = { workspace = true }
+futures-util = { workspace = true }
+tokio-stream = { workspace = true }
+
+# Observability and tracing
+opentelemetry = { workspace = true }
+opentelemetry-sdk = { workspace = true }
+opentelemetry-jaeger = { workspace = true }
+tracing-opentelemetry = { workspace = true }
+prometheus = { workspace = true }
+
+# TLS and certificates
+openssl = { workspace = true }
+
+# Time handling
+chrono = { workspace = true }
+
+# Cryptography for document encryption
+aes-gcm = "0.10"
+sha2 = "0.10"
+base64 = "0.21"
+
+# Regular expressions for PII redaction
+regex = "1.10"
+
+# Random number generation
+rand = "0.8"
+
+# Decimal arithmetic for financial calculations
+rust_decimal = { version = "1.33", features = ["serde-with-str"] }
+
+# HMAC and hex encoding for webhook validation
+hmac = "0.12"
+hex = "0.4"
+
+# HTTP client for external API calls
+reqwest = { version = "0.11", features = ["json"] }
+
+# Async trait support
+async-trait = "0.1"
+
+# File system operations
+async-fs = "2.1"
+
+[dev-dependencies]
+# Testing utilities
+tempfile = "3.8"
+futures = "0.3"
 
 # Solana dependencies
 solana-sdk = { workspace = true, optional = true }

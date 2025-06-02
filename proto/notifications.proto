@@ -1,0 +1,330 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Notification service for real-time push notifications and user preferences
+service NotificationService {
+  // Core notification operations
+  rpc SendNotification(SendNotificationRequest) returns (SendNotificationResponse);
+  rpc GetNotifications(GetNotificationsRequest) returns (GetNotificationsResponse);
+  rpc MarkAsRead(MarkAsReadRequest) returns (MarkAsReadResponse);
+  rpc DeleteNotification(DeleteNotificationRequest) returns (DeleteNotificationResponse);
+  
+  // User preference management
+  rpc GetNotificationPreferences(GetNotificationPreferencesRequest) returns (GetNotificationPreferencesResponse);
+  rpc UpdateNotificationPreferences(UpdateNotificationPreferencesRequest) returns (UpdateNotificationPreferencesResponse);
+  
+  // Price alert management
+  rpc CreatePriceAlert(CreatePriceAlertRequest) returns (CreatePriceAlertResponse);
+  rpc ListPriceAlerts(ListPriceAlertsRequest) returns (ListPriceAlertsResponse);
+  rpc UpdatePriceAlert(UpdatePriceAlertRequest) returns (UpdatePriceAlertResponse);
+  rpc DeletePriceAlert(DeletePriceAlertRequest) returns (DeletePriceAlertResponse);
+  
+  // WebSocket subscription management
+  rpc SubscribeToNotifications(SubscribeToNotificationsRequest) returns (SubscribeToNotificationsResponse);
+  rpc UnsubscribeFromNotifications(UnsubscribeFromNotificationsRequest) returns (UnsubscribeFromNotificationsResponse);
+  
+  // Admin operations
+  rpc BroadcastNotification(BroadcastNotificationRequest) returns (BroadcastNotificationResponse);
+  rpc GetNotificationMetrics(GetNotificationMetricsRequest) returns (GetNotificationMetricsResponse);
+}
+
+// Notification types
+enum NotificationType {
+  NOTIFICATION_TYPE_UNSPECIFIED = 0;
+  NOTIFICATION_TYPE_FIAT_TRANSACTION = 1;    // Fiat deposit/withdrawal updates
+  NOTIFICATION_TYPE_KYC_STATUS = 2;          // KYC verification status changes
+  NOTIFICATION_TYPE_SECURITY = 3;            // Security-related events
+  NOTIFICATION_TYPE_PRICE_ALERT = 4;         // Price threshold alerts
+  NOTIFICATION_TYPE_SYSTEM = 5;              // System announcements
+  NOTIFICATION_TYPE_CARD = 6;                // Virtual card notifications
+  NOTIFICATION_TYPE_REWARD = 7;              // Reward and cashback notifications
+}
+
+// Notification priority levels
+enum NotificationPriority {
+  NOTIFICATION_PRIORITY_UNSPECIFIED = 0;
+  NOTIFICATION_PRIORITY_LOW = 1;             // General information
+  NOTIFICATION_PRIORITY_NORMAL = 2;          // Standard notifications
+  NOTIFICATION_PRIORITY_HIGH = 3;            // Important updates
+  NOTIFICATION_PRIORITY_URGENT = 4;          // Critical security alerts
+}
+
+// Notification delivery channels
+enum DeliveryChannel {
+  DELIVERY_CHANNEL_UNSPECIFIED = 0;
+  DELIVERY_CHANNEL_WEBSOCKET = 1;           // Real-time WebSocket
+  DELIVERY_CHANNEL_IN_APP = 2;              // In-app notification center
+  DELIVERY_CHANNEL_EMAIL = 3;               // Email notifications (future)
+  DELIVERY_CHANNEL_SMS = 4;                 // SMS notifications (future)
+  DELIVERY_CHANNEL_PUSH = 5;                // Mobile push notifications (future)
+}
+
+// Price alert condition types
+enum PriceAlertCondition {
+  PRICE_ALERT_CONDITION_UNSPECIFIED = 0;
+  PRICE_ALERT_CONDITION_ABOVE = 1;          // Price goes above threshold
+  PRICE_ALERT_CONDITION_BELOW = 2;          // Price goes below threshold
+  PRICE_ALERT_CONDITION_CHANGE_PERCENT = 3; // Price changes by percentage
+}
+
+// Notification entity
+message Notification {
+  string id = 1;
+  string user_id = 2;
+  NotificationType type = 3;
+  NotificationPriority priority = 4;
+  string title = 5;
+  string message = 6;
+  map<string, string> metadata = 7;         // Additional context data
+  repeated DeliveryChannel channels = 8;
+  bool is_read = 9;
+  int64 created_at = 10;
+  int64 read_at = 11;
+  int64 expires_at = 12;                    // Optional expiration
+  string action_url = 13;                   // Optional action link
+  string icon_url = 14;                     // Optional notification icon
+}
+
+// User notification preferences
+message NotificationPreferences {
+  string user_id = 1;
+  bool fiat_transaction_enabled = 2;
+  bool kyc_status_enabled = 3;
+  bool security_alerts_enabled = 4;
+  bool price_alerts_enabled = 5;
+  bool system_announcements_enabled = 6;
+  bool card_notifications_enabled = 7;
+  bool reward_notifications_enabled = 8;
+  repeated DeliveryChannel preferred_channels = 9;
+  bool quiet_hours_enabled = 10;
+  int32 quiet_hours_start = 11;             // Hour of day (0-23)
+  int32 quiet_hours_end = 12;               // Hour of day (0-23)
+  string timezone = 13;
+  int64 updated_at = 14;
+}
+
+// Price alert configuration
+message PriceAlert {
+  string id = 1;
+  string user_id = 2;
+  string symbol = 3;
+  string quote_currency = 4;
+  PriceAlertCondition condition = 5;
+  string threshold_value = 6;               // Decimal string
+  bool is_active = 7;
+  bool is_repeating = 8;                    // Whether to trigger multiple times
+  int32 trigger_count = 9;                  // Number of times triggered
+  int32 max_triggers = 10;                  // Maximum triggers (0 = unlimited)
+  int64 created_at = 11;
+  int64 last_triggered_at = 12;
+  int64 expires_at = 13;                    // Optional expiration
+  string note = 14;                         // User note for the alert
+}
+
+// Notification metrics for monitoring
+message NotificationMetrics {
+  int64 total_notifications_sent = 1;
+  int64 websocket_deliveries = 2;
+  int64 in_app_deliveries = 3;
+  int64 failed_deliveries = 4;
+  double delivery_success_rate = 5;
+  int64 active_websocket_connections = 6;
+  int64 active_price_alerts = 7;
+  int64 notifications_last_24h = 8;
+  map<string, int64> notifications_by_type = 9;
+  map<string, int64> notifications_by_priority = 10;
+  double average_delivery_time_ms = 11;
+}
+
+// Send notification request
+message SendNotificationRequest {
+  string user_id = 1;
+  NotificationType type = 2;
+  NotificationPriority priority = 3;
+  string title = 4;
+  string message = 5;
+  map<string, string> metadata = 6;
+  repeated DeliveryChannel channels = 7;
+  int64 expires_at = 8;                     // Optional expiration
+  string action_url = 9;                    // Optional action link
+  string icon_url = 10;                     // Optional notification icon
+}
+
+// Send notification response
+message SendNotificationResponse {
+  Notification notification = 1;
+  bool delivered = 2;
+  repeated string failed_channels = 3;
+}
+
+// Get notifications request
+message GetNotificationsRequest {
+  string user_id = 1;
+  repeated NotificationType type_filter = 2;
+  bool unread_only = 3;
+  int32 page_size = 4;
+  string page_token = 5;
+  int64 since_timestamp = 6;                // Get notifications since this time
+}
+
+// Get notifications response
+message GetNotificationsResponse {
+  repeated Notification notifications = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  int32 unread_count = 4;
+}
+
+// Mark as read request
+message MarkAsReadRequest {
+  string user_id = 1;
+  repeated string notification_ids = 2;     // Empty = mark all as read
+}
+
+// Mark as read response
+message MarkAsReadResponse {
+  int32 marked_count = 1;
+}
+
+// Delete notification request
+message DeleteNotificationRequest {
+  string user_id = 1;
+  string notification_id = 2;
+}
+
+// Delete notification response
+message DeleteNotificationResponse {
+  bool success = 1;
+}
+
+// Get notification preferences request
+message GetNotificationPreferencesRequest {
+  string user_id = 1;
+}
+
+// Get notification preferences response
+message GetNotificationPreferencesResponse {
+  NotificationPreferences preferences = 1;
+}
+
+// Update notification preferences request
+message UpdateNotificationPreferencesRequest {
+  string user_id = 1;
+  NotificationPreferences preferences = 2;
+}
+
+// Update notification preferences response
+message UpdateNotificationPreferencesResponse {
+  NotificationPreferences preferences = 1;
+}
+
+// Create price alert request
+message CreatePriceAlertRequest {
+  string user_id = 1;
+  string symbol = 2;
+  string quote_currency = 3;
+  PriceAlertCondition condition = 4;
+  string threshold_value = 5;
+  bool is_repeating = 6;
+  int32 max_triggers = 7;
+  int64 expires_at = 8;
+  string note = 9;
+}
+
+// Create price alert response
+message CreatePriceAlertResponse {
+  PriceAlert alert = 1;
+}
+
+// List price alerts request
+message ListPriceAlertsRequest {
+  string user_id = 1;
+  bool active_only = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+// List price alerts response
+message ListPriceAlertsResponse {
+  repeated PriceAlert alerts = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Update price alert request
+message UpdatePriceAlertRequest {
+  string user_id = 1;
+  string alert_id = 2;
+  PriceAlert alert = 3;
+}
+
+// Update price alert response
+message UpdatePriceAlertResponse {
+  PriceAlert alert = 1;
+}
+
+// Delete price alert request
+message DeletePriceAlertRequest {
+  string user_id = 1;
+  string alert_id = 2;
+}
+
+// Delete price alert response
+message DeletePriceAlertResponse {
+  bool success = 1;
+}
+
+// Subscribe to notifications request
+message SubscribeToNotificationsRequest {
+  string user_id = 1;
+  repeated NotificationType types = 2;      // Empty = subscribe to all
+}
+
+// Subscribe to notifications response
+message SubscribeToNotificationsResponse {
+  bool success = 1;
+  string subscription_id = 2;
+}
+
+// Unsubscribe from notifications request
+message UnsubscribeFromNotificationsRequest {
+  string user_id = 1;
+  string subscription_id = 2;
+}
+
+// Unsubscribe from notifications response
+message UnsubscribeFromNotificationsResponse {
+  bool success = 1;
+}
+
+// Broadcast notification request (admin only)
+message BroadcastNotificationRequest {
+  NotificationType type = 1;
+  NotificationPriority priority = 2;
+  string title = 3;
+  string message = 4;
+  map<string, string> metadata = 5;
+  repeated string target_user_ids = 6;      // Empty = broadcast to all users
+  repeated DeliveryChannel channels = 7;
+  int64 expires_at = 8;
+}
+
+// Broadcast notification response
+message BroadcastNotificationResponse {
+  int32 notifications_sent = 1;
+  int32 successful_deliveries = 2;
+  int32 failed_deliveries = 3;
+}
+
+// Get notification metrics request (admin only)
+message GetNotificationMetricsRequest {
+  bool include_detailed_stats = 1;
+  int64 start_time = 2;                     // Optional time range
+  int64 end_time = 3;
+}
+
+// Get notification metrics response
+message GetNotificationMetricsResponse {
+  NotificationMetrics metrics = 1;
+}

@@ -1,0 +1,222 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Pricing service for real-time cryptocurrency and fiat currency pricing
+service PricingService {
+  // Core pricing operations
+  rpc GetPrice(GetPriceRequest) returns (GetPriceResponse);
+  rpc GetPriceBatch(GetPriceBatchRequest) returns (GetPriceBatchResponse);
+  rpc GetFiatRate(GetFiatRateRequest) returns (GetFiatRateResponse);
+  rpc ListSupportedSymbols(ListSupportedSymbolsRequest) returns (ListSupportedSymbolsResponse);
+  
+  // Historical data
+  rpc GetPriceHistory(GetPriceHistoryRequest) returns (GetPriceHistoryResponse);
+  
+  // Admin operations
+  rpc UpdatePriceFeed(UpdatePriceFeedRequest) returns (UpdatePriceFeedResponse);
+  rpc GetPricingMetrics(GetPricingMetricsRequest) returns (GetPricingMetricsResponse);
+  rpc RefreshPriceCache(RefreshPriceCacheRequest) returns (RefreshPriceCacheResponse);
+}
+
+// Asset types supported by the pricing service
+enum AssetType {
+  ASSET_TYPE_UNSPECIFIED = 0;
+  ASSET_TYPE_CRYPTOCURRENCY = 1;
+  ASSET_TYPE_FIAT = 2;
+  ASSET_TYPE_TOKEN = 3;
+  ASSET_TYPE_STABLECOIN = 4;
+}
+
+// Price data source
+enum PriceSource {
+  PRICE_SOURCE_UNSPECIFIED = 0;
+  PRICE_SOURCE_COINGECKO = 1;
+  PRICE_SOURCE_COINMARKETCAP = 2;
+  PRICE_SOURCE_BINANCE = 3;
+  PRICE_SOURCE_MOCK = 4; // For testing
+  PRICE_SOURCE_CACHE = 5;
+}
+
+// Time intervals for historical data
+enum TimeInterval {
+  TIME_INTERVAL_UNSPECIFIED = 0;
+  TIME_INTERVAL_1M = 1;   // 1 minute
+  TIME_INTERVAL_5M = 2;   // 5 minutes
+  TIME_INTERVAL_15M = 3;  // 15 minutes
+  TIME_INTERVAL_1H = 4;   // 1 hour
+  TIME_INTERVAL_4H = 5;   // 4 hours
+  TIME_INTERVAL_1D = 6;   // 1 day
+  TIME_INTERVAL_1W = 7;   // 1 week
+  TIME_INTERVAL_1MO = 8;  // 1 month
+}
+
+// Asset information
+message Asset {
+  string symbol = 1;           // BTC, ETH, USD, etc.
+  string name = 2;             // Bitcoin, Ethereum, US Dollar
+  AssetType type = 3;
+  string chain = 4;            // ethereum, solana, bitcoin, etc.
+  string contract_address = 5; // For tokens
+  int32 decimals = 6;          // Decimal precision
+  string icon_url = 7;         // Asset icon URL
+  bool is_active = 8;          // Whether pricing is active
+  int64 created_at = 9;
+  int64 updated_at = 10;
+}
+
+// Price information
+message Price {
+  string symbol = 1;
+  string price_usd = 2;        // Current price in USD (decimal string)
+  string price_btc = 3;        // Price in BTC (decimal string)
+  string market_cap = 4;       // Market capitalization (decimal string)
+  string volume_24h = 5;       // 24h trading volume (decimal string)
+  string change_24h = 6;       // 24h price change percentage (decimal string)
+  string change_7d = 7;        // 7d price change percentage (decimal string)
+  PriceSource source = 8;      // Data source
+  int64 timestamp = 9;         // Unix timestamp
+  int64 last_updated = 10;     // Last update timestamp
+}
+
+// Historical price point
+message PricePoint {
+  int64 timestamp = 1;
+  string price = 2;            // Price at timestamp (decimal string)
+  string volume = 3;           // Volume at timestamp (decimal string)
+}
+
+// Fiat exchange rate
+message FiatRate {
+  string from_currency = 1;    // USD, EUR, etc.
+  string to_currency = 2;      // USD, EUR, etc.
+  string rate = 3;             // Exchange rate (decimal string)
+  PriceSource source = 4;
+  int64 timestamp = 5;
+}
+
+// Pricing metrics for monitoring
+message PricingMetrics {
+  int64 total_requests = 1;
+  int64 cache_hits = 2;
+  int64 cache_misses = 3;
+  double cache_hit_rate = 4;
+  int64 api_calls_today = 5;
+  int64 api_rate_limit = 6;
+  int32 supported_assets_count = 7;
+  int64 last_cache_refresh = 8;
+  repeated string active_sources = 9;
+  map<string, int64> source_request_counts = 10;
+}
+
+// Get single price request
+message GetPriceRequest {
+  string symbol = 1;
+  string quote_currency = 2;   // Default: USD
+  string chain = 3;            // Optional: for tokens
+  string contract_address = 4; // Optional: for tokens
+}
+
+// Get single price response
+message GetPriceResponse {
+  Price price = 1;
+}
+
+// Get batch prices request
+message GetPriceBatchRequest {
+  repeated string symbols = 1;
+  string quote_currency = 2;   // Default: USD
+  bool include_metadata = 3;   // Include market cap, volume, etc.
+}
+
+// Get batch prices response
+message GetPriceBatchResponse {
+  repeated Price prices = 1;
+  int32 total_count = 2;
+  int32 successful_count = 3;
+  repeated string failed_symbols = 4;
+}
+
+// Get fiat rate request
+message GetFiatRateRequest {
+  string from_currency = 1;
+  string to_currency = 2;
+}
+
+// Get fiat rate response
+message GetFiatRateResponse {
+  FiatRate rate = 1;
+}
+
+// List supported symbols request
+message ListSupportedSymbolsRequest {
+  AssetType type_filter = 1;   // Optional filter by asset type
+  string chain_filter = 2;     // Optional filter by chain
+  bool active_only = 3;        // Only active assets
+  int32 page_size = 4;
+  string page_token = 5;
+}
+
+// List supported symbols response
+message ListSupportedSymbolsResponse {
+  repeated Asset assets = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Get price history request
+message GetPriceHistoryRequest {
+  string symbol = 1;
+  string quote_currency = 2;   // Default: USD
+  TimeInterval interval = 3;
+  int64 start_time = 4;        // Unix timestamp
+  int64 end_time = 5;          // Unix timestamp
+  int32 limit = 6;             // Max points to return
+}
+
+// Get price history response
+message GetPriceHistoryResponse {
+  repeated PricePoint points = 1;
+  string symbol = 2;
+  string quote_currency = 3;
+  TimeInterval interval = 4;
+  int32 total_points = 5;
+}
+
+// Update price feed request (admin only)
+message UpdatePriceFeedRequest {
+  string symbol = 1;
+  Price price_data = 2;
+  bool force_update = 3;       // Force cache update
+}
+
+// Update price feed response
+message UpdatePriceFeedResponse {
+  bool success = 1;
+  string message = 2;
+  Price updated_price = 3;
+}
+
+// Get pricing metrics request (admin only)
+message GetPricingMetricsRequest {
+  bool include_detailed_stats = 1;
+}
+
+// Get pricing metrics response
+message GetPricingMetricsResponse {
+  PricingMetrics metrics = 1;
+}
+
+// Refresh price cache request (admin only)
+message RefreshPriceCacheRequest {
+  repeated string symbols = 1; // Empty = refresh all
+  bool force_refresh = 2;
+}
+
+// Refresh price cache response
+message RefreshPriceCacheResponse {
+  bool success = 1;
+  string message = 2;
+  int32 refreshed_count = 3;
+  repeated string failed_symbols = 4;
+}

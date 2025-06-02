@@ -1,0 +1,528 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Spending insights service for Apple Card-style spending visualization and analysis
+service SpendingInsightsService {
+  // Core spending analysis
+  rpc GetSpendingSummary(GetSpendingSummaryRequest) returns (GetSpendingSummaryResponse);
+  rpc GetCategoryBreakdown(GetCategoryBreakdownRequest) returns (GetCategoryBreakdownResponse);
+  rpc GetSpendingTrends(GetSpendingTrendsRequest) returns (GetSpendingTrendsResponse);
+  rpc GetMonthlyReport(GetMonthlyReportRequest) returns (GetMonthlyReportResponse);
+  
+  // Budget management
+  rpc CreateBudget(CreateBudgetRequest) returns (CreateBudgetResponse);
+  rpc UpdateBudget(UpdateBudgetRequest) returns (UpdateBudgetResponse);
+  rpc GetBudgets(GetBudgetsRequest) returns (GetBudgetsResponse);
+  rpc DeleteBudget(DeleteBudgetRequest) returns (DeleteBudgetResponse);
+  rpc GetBudgetStatus(GetBudgetStatusRequest) returns (GetBudgetStatusResponse);
+  
+  // Spending alerts and notifications
+  rpc CreateSpendingAlert(CreateSpendingAlertRequest) returns (CreateSpendingAlertResponse);
+  rpc UpdateSpendingAlert(UpdateSpendingAlertRequest) returns (UpdateSpendingAlertResponse);
+  rpc GetSpendingAlerts(GetSpendingAlertsRequest) returns (GetSpendingAlertsResponse);
+  rpc DeleteSpendingAlert(DeleteSpendingAlertRequest) returns (DeleteSpendingAlertResponse);
+  
+  // Merchant and location insights
+  rpc GetTopMerchants(GetTopMerchantsRequest) returns (GetTopMerchantsResponse);
+  rpc GetLocationInsights(GetLocationInsightsRequest) returns (GetLocationInsightsResponse);
+  rpc GetMerchantHistory(GetMerchantHistoryRequest) returns (GetMerchantHistoryResponse);
+  
+  // Advanced analytics
+  rpc GetSpendingPatterns(GetSpendingPatternsRequest) returns (GetSpendingPatternsResponse);
+  rpc GetCashflowAnalysis(GetCashflowAnalysisRequest) returns (GetCashflowAnalysisResponse);
+  rpc ExportSpendingData(ExportSpendingDataRequest) returns (ExportSpendingDataResponse);
+  
+  // Admin analytics
+  rpc GetUserSpendingMetrics(GetUserSpendingMetricsRequest) returns (GetUserSpendingMetricsResponse);
+  rpc GetPlatformInsights(GetPlatformInsightsRequest) returns (GetPlatformInsightsResponse);
+}
+
+// Time period enumeration
+enum TimePeriod {
+  TIME_PERIOD_UNSPECIFIED = 0;
+  TIME_PERIOD_DAILY = 1;
+  TIME_PERIOD_WEEKLY = 2;
+  TIME_PERIOD_MONTHLY = 3;
+  TIME_PERIOD_QUARTERLY = 4;
+  TIME_PERIOD_YEARLY = 5;
+  TIME_PERIOD_CUSTOM = 6;
+}
+
+// Budget status enumeration
+enum BudgetStatus {
+  BUDGET_STATUS_UNSPECIFIED = 0;
+  BUDGET_STATUS_ON_TRACK = 1;      // Under 80% of budget
+  BUDGET_STATUS_WARNING = 2;       // 80-95% of budget
+  BUDGET_STATUS_EXCEEDED = 3;      // Over 100% of budget
+  BUDGET_STATUS_CRITICAL = 4;      // Over 120% of budget
+}
+
+// Alert type enumeration
+enum AlertType {
+  ALERT_TYPE_UNSPECIFIED = 0;
+  ALERT_TYPE_BUDGET_WARNING = 1;   // Budget threshold reached
+  ALERT_TYPE_BUDGET_EXCEEDED = 2;  // Budget exceeded
+  ALERT_TYPE_UNUSUAL_SPENDING = 3; // Unusual spending pattern
+  ALERT_TYPE_LARGE_TRANSACTION = 4; // Large transaction alert
+  ALERT_TYPE_CATEGORY_LIMIT = 5;   // Category spending limit
+  ALERT_TYPE_MERCHANT_ALERT = 6;   // Specific merchant alert
+}
+
+// Spending category breakdown
+message CategorySpending {
+  string category = 1;             // Category name (grocery, restaurant, etc.)
+  string category_code = 2;        // Standardized category code
+  string total_amount = 3;         // Total spent in category
+  string currency = 4;             // Currency of amounts
+  int64 transaction_count = 5;     // Number of transactions
+  string average_amount = 6;       // Average transaction amount
+  double percentage_of_total = 7;  // Percentage of total spending
+  string budget_amount = 8;        // Budget allocated for category
+  double budget_utilization = 9;  // Percentage of budget used
+  repeated string top_merchants = 10; // Top merchants in category
+}
+
+// Time-based spending data point
+message SpendingDataPoint {
+  int64 timestamp = 1;             // Unix timestamp
+  string amount = 2;               // Amount spent
+  string currency = 3;             // Currency
+  int64 transaction_count = 4;     // Number of transactions
+  string period_label = 5;         // Human-readable period (e.g., "Jan 2024")
+}
+
+// Budget entity
+message Budget {
+  string id = 1;                   // Budget ID
+  string user_id = 2;              // User ID
+  string category = 3;             // Category or "total" for overall budget
+  string amount = 4;               // Budget amount
+  string currency = 5;             // Budget currency
+  TimePeriod period = 6;           // Budget period
+  string spent_amount = 7;         // Amount spent so far
+  double utilization = 8;          // Percentage of budget used
+  BudgetStatus status = 9;         // Budget status
+  bool is_active = 10;             // Whether budget is active
+  int64 created_at = 11;           // Creation timestamp
+  int64 updated_at = 12;           // Last update timestamp
+  int64 period_start = 13;         // Period start timestamp
+  int64 period_end = 14;           // Period end timestamp
+  repeated string alert_thresholds = 15; // Alert thresholds (e.g., "80", "100")
+}
+
+// Spending alert entity
+message SpendingAlert {
+  string id = 1;                   // Alert ID
+  string user_id = 2;              // User ID
+  AlertType type = 3;              // Alert type
+  string title = 4;                // Alert title
+  string message = 5;              // Alert message
+  string category = 6;             // Category (if applicable)
+  string merchant = 7;             // Merchant (if applicable)
+  string threshold_amount = 8;     // Threshold amount
+  string currency = 9;             // Currency
+  bool is_active = 10;             // Whether alert is active
+  int64 created_at = 11;           // Creation timestamp
+  int64 triggered_at = 12;         // Last trigger timestamp
+  map<string, string> metadata = 13; // Additional alert data
+}
+
+// Merchant spending summary
+message MerchantSpending {
+  string merchant_name = 1;        // Merchant name
+  string category = 2;             // Merchant category
+  string total_amount = 3;         // Total spent at merchant
+  string currency = 4;             // Currency
+  int64 transaction_count = 5;     // Number of transactions
+  string average_amount = 6;       // Average transaction amount
+  string last_transaction_date = 7; // Last transaction date
+  string location = 8;             // Merchant location
+  double frequency_score = 9;      // How often user shops here (0-1)
+}
+
+// Location-based spending insights
+message LocationInsight {
+  string location = 1;             // Location (city, state, country)
+  string total_amount = 2;         // Total spent in location
+  string currency = 3;             // Currency
+  int64 transaction_count = 4;     // Number of transactions
+  repeated string top_categories = 5; // Top spending categories
+  repeated string top_merchants = 6;  // Top merchants
+  double percentage_of_total = 7;  // Percentage of total spending
+}
+
+// Spending pattern analysis
+message SpendingPattern {
+  string pattern_type = 1;         // Pattern type (weekly, seasonal, etc.)
+  string description = 2;          // Pattern description
+  double confidence = 3;           // Confidence score (0-1)
+  string average_amount = 4;       // Average amount for pattern
+  string currency = 5;             // Currency
+  repeated string peak_periods = 6; // Peak spending periods
+  map<string, string> insights = 7; // Additional insights
+}
+
+// Cashflow analysis
+message CashflowAnalysis {
+  string period = 1;               // Analysis period
+  string total_inflow = 2;         // Total money in (top-ups)
+  string total_outflow = 3;        // Total money out (spending)
+  string net_flow = 4;             // Net cashflow
+  string currency = 5;             // Currency
+  repeated SpendingDataPoint daily_flow = 6; // Daily cashflow data
+  string average_daily_spending = 7; // Average daily spending
+  string projected_monthly_spending = 8; // Projected monthly spending
+  double spending_velocity = 9;    // Spending rate trend
+}
+
+// Platform-wide insights (admin only)
+message PlatformInsights {
+  int64 total_users = 1;           // Total active users
+  string total_volume = 2;         // Total transaction volume
+  string currency = 3;             // Currency
+  int64 total_transactions = 4;    // Total transactions
+  string average_transaction = 5;  // Average transaction amount
+  repeated CategorySpending top_categories = 6; // Top spending categories
+  repeated MerchantSpending top_merchants = 7;  // Top merchants
+  map<string, string> growth_metrics = 8; // Growth metrics
+  repeated SpendingDataPoint volume_trend = 9; // Volume trend over time
+}
+
+// Get spending summary request
+message GetSpendingSummaryRequest {
+  TimePeriod period = 1;           // Time period for summary
+  int64 start_date = 2;            // Custom start date (if period is CUSTOM)
+  int64 end_date = 3;              // Custom end date (if period is CUSTOM)
+  string currency = 4;             // Currency filter (optional)
+  repeated string card_ids = 5;    // Specific cards to include (optional)
+}
+
+// Get spending summary response
+message GetSpendingSummaryResponse {
+  string total_spent = 1;          // Total amount spent
+  string currency = 2;             // Currency
+  int64 transaction_count = 3;     // Total transactions
+  string average_transaction = 4;  // Average transaction amount
+  repeated CategorySpending categories = 5; // Category breakdown
+  repeated SpendingDataPoint trend_data = 6; // Spending trend data
+  string period_label = 7;         // Human-readable period
+  double change_percentage = 8;    // Change from previous period
+  string previous_period_amount = 9; // Previous period spending
+}
+
+// Get category breakdown request
+message GetCategoryBreakdownRequest {
+  TimePeriod period = 1;           // Time period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  string currency = 4;             // Currency filter
+  bool include_subcategories = 5; // Include subcategory breakdown
+}
+
+// Get category breakdown response
+message GetCategoryBreakdownResponse {
+  repeated CategorySpending categories = 1; // Category spending data
+  string total_amount = 2;         // Total spending across all categories
+  string currency = 3;             // Currency
+  string period_label = 4;         // Period description
+}
+
+// Get spending trends request
+message GetSpendingTrendsRequest {
+  TimePeriod period = 1;           // Trend period granularity
+  int64 start_date = 2;            // Start date for trend analysis
+  int64 end_date = 3;              // End date for trend analysis
+  string category = 4;             // Category filter (optional)
+  string merchant = 5;             // Merchant filter (optional)
+}
+
+// Get spending trends response
+message GetSpendingTrendsResponse {
+  repeated SpendingDataPoint trend_data = 1; // Trend data points
+  string total_amount = 2;         // Total amount in period
+  string currency = 3;             // Currency
+  double growth_rate = 4;          // Growth rate percentage
+  string trend_direction = 5;      // "increasing", "decreasing", "stable"
+  repeated SpendingPattern patterns = 6; // Identified patterns
+}
+
+// Get monthly report request
+message GetMonthlyReportRequest {
+  int32 year = 1;                  // Year for report
+  int32 month = 2;                 // Month for report (1-12)
+  string currency = 3;             // Currency filter
+  bool include_comparisons = 4;    // Include previous month comparisons
+}
+
+// Get monthly report response
+message GetMonthlyReportResponse {
+  string total_spent = 1;          // Total spent in month
+  string currency = 2;             // Currency
+  int64 transaction_count = 3;     // Total transactions
+  repeated CategorySpending categories = 4; // Category breakdown
+  repeated MerchantSpending top_merchants = 5; // Top merchants
+  repeated SpendingDataPoint daily_spending = 6; // Daily spending data
+  string average_daily_spending = 7; // Average daily spending
+  string highest_spending_day = 8; // Highest spending day
+  string lowest_spending_day = 9;  // Lowest spending day
+  double month_over_month_change = 10; // Change from previous month
+  repeated Budget budget_performance = 11; // Budget performance
+  repeated SpendingAlert triggered_alerts = 12; // Alerts triggered
+}
+
+// Create budget request
+message CreateBudgetRequest {
+  string category = 1;             // Category or "total"
+  string amount = 2;               // Budget amount
+  string currency = 3;             // Currency
+  TimePeriod period = 4;           // Budget period
+  repeated string alert_thresholds = 5; // Alert thresholds
+  bool is_active = 6;              // Whether budget is active
+}
+
+// Create budget response
+message CreateBudgetResponse {
+  Budget budget = 1;               // Created budget
+  bool success = 2;                // Operation success
+}
+
+// Update budget request
+message UpdateBudgetRequest {
+  string budget_id = 1;            // Budget ID to update
+  string amount = 2;               // New budget amount
+  repeated string alert_thresholds = 3; // New alert thresholds
+  bool is_active = 4;              // Whether budget is active
+}
+
+// Update budget response
+message UpdateBudgetResponse {
+  Budget budget = 1;               // Updated budget
+  bool success = 2;                // Operation success
+}
+
+// Get budgets request
+message GetBudgetsRequest {
+  string category = 1;             // Category filter (optional)
+  TimePeriod period = 2;           // Period filter (optional)
+  bool active_only = 3;            // Only active budgets
+}
+
+// Get budgets response
+message GetBudgetsResponse {
+  repeated Budget budgets = 1;     // User's budgets
+  int64 total_count = 2;           // Total budget count
+}
+
+// Delete budget request
+message DeleteBudgetRequest {
+  string budget_id = 1;            // Budget ID to delete
+}
+
+// Delete budget response
+message DeleteBudgetResponse {
+  bool success = 1;                // Operation success
+}
+
+// Get budget status request
+message GetBudgetStatusRequest {
+  TimePeriod period = 1;           // Period for status check
+  string category = 2;             // Category filter (optional)
+}
+
+// Get budget status response
+message GetBudgetStatusResponse {
+  repeated Budget budgets = 1;     // Budget status data
+  int64 budgets_on_track = 2;      // Number of budgets on track
+  int64 budgets_at_warning = 3;    // Number of budgets at warning
+  int64 budgets_exceeded = 4;      // Number of budgets exceeded
+  string total_budget_amount = 5;  // Total budget amount
+  string total_spent_amount = 6;   // Total spent amount
+  double overall_utilization = 7;  // Overall budget utilization
+}
+
+// Create spending alert request
+message CreateSpendingAlertRequest {
+  AlertType type = 1;              // Alert type
+  string category = 2;             // Category (if applicable)
+  string merchant = 3;             // Merchant (if applicable)
+  string threshold_amount = 4;     // Threshold amount
+  string currency = 5;             // Currency
+  string custom_message = 6;       // Custom alert message
+}
+
+// Create spending alert response
+message CreateSpendingAlertResponse {
+  SpendingAlert alert = 1;         // Created alert
+  bool success = 2;                // Operation success
+}
+
+// Update spending alert request
+message UpdateSpendingAlertRequest {
+  string alert_id = 1;             // Alert ID to update
+  string threshold_amount = 2;     // New threshold amount
+  bool is_active = 3;              // Whether alert is active
+  string custom_message = 4;       // Custom alert message
+}
+
+// Update spending alert response
+message UpdateSpendingAlertResponse {
+  SpendingAlert alert = 1;         // Updated alert
+  bool success = 2;                // Operation success
+}
+
+// Get spending alerts request
+message GetSpendingAlertsRequest {
+  AlertType type = 1;              // Alert type filter (optional)
+  bool active_only = 2;            // Only active alerts
+}
+
+// Get spending alerts response
+message GetSpendingAlertsResponse {
+  repeated SpendingAlert alerts = 1; // User's spending alerts
+  int64 total_count = 2;           // Total alert count
+}
+
+// Delete spending alert request
+message DeleteSpendingAlertRequest {
+  string alert_id = 1;             // Alert ID to delete
+}
+
+// Delete spending alert response
+message DeleteSpendingAlertResponse {
+  bool success = 1;                // Operation success
+}
+
+// Get top merchants request
+message GetTopMerchantsRequest {
+  TimePeriod period = 1;           // Time period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  string category = 4;             // Category filter (optional)
+  int32 limit = 5;                 // Number of merchants to return
+}
+
+// Get top merchants response
+message GetTopMerchantsResponse {
+  repeated MerchantSpending merchants = 1; // Top merchants
+  string total_amount = 2;         // Total amount across all merchants
+  string currency = 3;             // Currency
+  string period_label = 4;         // Period description
+}
+
+// Get location insights request
+message GetLocationInsightsRequest {
+  TimePeriod period = 1;           // Time period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  string country = 4;              // Country filter (optional)
+}
+
+// Get location insights response
+message GetLocationInsightsResponse {
+  repeated LocationInsight locations = 1; // Location insights
+  string total_amount = 2;         // Total amount across all locations
+  string currency = 3;             // Currency
+  string primary_location = 4;     // Most frequent location
+}
+
+// Get merchant history request
+message GetMerchantHistoryRequest {
+  string merchant_name = 1;        // Merchant name
+  TimePeriod period = 2;           // Time period
+  int64 start_date = 3;            // Custom start date
+  int64 end_date = 4;              // Custom end date
+}
+
+// Get merchant history response
+message GetMerchantHistoryResponse {
+  MerchantSpending merchant_summary = 1; // Merchant summary
+  repeated SpendingDataPoint spending_history = 2; // Spending history
+  string average_visit_amount = 3; // Average amount per visit
+  int64 visit_frequency_days = 4;  // Average days between visits
+  string last_visit_date = 5;      // Last transaction date
+}
+
+// Get spending patterns request
+message GetSpendingPatternsRequest {
+  TimePeriod analysis_period = 1;  // Period for pattern analysis
+  int64 start_date = 2;            // Analysis start date
+  int64 end_date = 3;              // Analysis end date
+  string category = 4;             // Category filter (optional)
+}
+
+// Get spending patterns response
+message GetSpendingPatternsResponse {
+  repeated SpendingPattern patterns = 1; // Identified patterns
+  string analysis_period = 2;      // Analysis period description
+  double pattern_confidence = 3;   // Overall pattern confidence
+  repeated string recommendations = 4; // Spending recommendations
+}
+
+// Get cashflow analysis request
+message GetCashflowAnalysisRequest {
+  TimePeriod period = 1;           // Analysis period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  bool include_projections = 4;    // Include future projections
+}
+
+// Get cashflow analysis response
+message GetCashflowAnalysisResponse {
+  CashflowAnalysis analysis = 1;   // Cashflow analysis
+  repeated string insights = 2;    // Cashflow insights
+  repeated string recommendations = 3; // Financial recommendations
+}
+
+// Export spending data request
+message ExportSpendingDataRequest {
+  TimePeriod period = 1;           // Export period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  string format = 4;               // Export format (csv, json, pdf)
+  repeated string categories = 5;  // Categories to include
+  bool include_merchant_details = 6; // Include merchant information
+}
+
+// Export spending data response
+message ExportSpendingDataResponse {
+  string download_url = 1;         // Download URL for exported data
+  string file_name = 2;            // Generated file name
+  string format = 3;               // File format
+  int64 expires_at = 4;            // Download URL expiration
+  bool success = 5;                // Operation success
+}
+
+// Get user spending metrics request (admin only)
+message GetUserSpendingMetricsRequest {
+  string user_id = 1;              // User ID (optional, for specific user)
+  TimePeriod period = 2;           // Metrics period
+  int64 start_date = 3;            // Custom start date
+  int64 end_date = 4;              // Custom end date
+}
+
+// Get user spending metrics response
+message GetUserSpendingMetricsResponse {
+  string total_volume = 1;         // Total spending volume
+  string currency = 2;             // Currency
+  int64 total_transactions = 3;    // Total transactions
+  string average_transaction = 4;  // Average transaction amount
+  repeated CategorySpending categories = 5; // Category breakdown
+  double engagement_score = 6;     // User engagement score
+  string period_label = 7;         // Period description
+}
+
+// Get platform insights request (admin only)
+message GetPlatformInsightsRequest {
+  TimePeriod period = 1;           // Insights period
+  int64 start_date = 2;            // Custom start date
+  int64 end_date = 3;              // Custom end date
+  bool include_trends = 4;         // Include trend analysis
+}
+
+// Get platform insights response
+message GetPlatformInsightsResponse {
+  PlatformInsights insights = 1;   // Platform insights
+  repeated string key_metrics = 2; // Key performance metrics
+  repeated string growth_insights = 3; // Growth insights
+}

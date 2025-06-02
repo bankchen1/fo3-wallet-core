@@ -1,393 +1,287 @@
 //! FO3 Wallet API
 //!
-//! This is the REST API server for the FO3 multi-chain wallet and DeFi SDK.
+//! This is the secure gRPC API server for the FO3 multi-chain wallet and DeFi SDK.
 
-#[cfg(feature = "solana")]
-mod solana;
-
-#[cfg(feature = "solana")]
-mod raydium;
-
-#[cfg(feature = "solana")]
-mod nft;
-
-#[cfg(feature = "solana")]
-mod orca;
+mod services;
+mod error;
+mod state;
+mod middleware;
+mod tls;
+mod websocket;
+mod observability;
+mod models;
+mod storage;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
-use axum::{
-    routing::{get, post},
-    Router,
-    extract::{Extension, Json, Path},
-    http::StatusCode,
-};
-use serde::{Serialize, Deserialize};
+use tonic::{transport::Server, Request, Response, Status};
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt};
+use axum::Router;
 
 use fo3_wallet::{
-    account::Wallet,
-    crypto::keys::KeyType,
-    transaction::{TransactionRequest, TransactionStatus, provider::{ProviderConfig, ProviderType, ProviderFactory}},
-    defi::{Token, SwapRequest, LendingRequest, StakingRequest},
-    error::{Error as WalletError},
+    transaction::provider::{ProviderConfig, ProviderType},
 };
 
-// Application state
-struct AppState {
-    // In a real application, this would be a database
-    wallets: std::sync::RwLock<std::collections::HashMap<String, Wallet>>,
-    // Provider configuration
-    provider_config: ProviderConfig,
-}
+use crate::state::AppState;
+use crate::services::{
+    wallet::WalletServiceImpl,
+    transaction::TransactionServiceImpl,
+    defi::DefiServiceImpl,
+    health::HealthServiceImpl,
+    auth::AuthServiceImpl,
+    events::EventServiceImpl,
+    kyc::KycServiceImpl,
+    fiat_gateway::FiatGatewayServiceImpl,
+    pricing::PricingServiceImpl,
+    notifications::NotificationServiceImpl,
+    cards::CardServiceImpl,
+    spending_insights::SpendingInsightsServiceImpl,
+};
+use crate::middleware::{
+    auth::AuthService,
+    rate_limit::RateLimiter,
+    audit::AuditLogger,
+    kyc_guard::KycGuard,
+    fiat_guard::FiatGuard,
+    pricing_guard::PricingGuard,
+    card_guard::CardGuard,
+    spending_guard::SpendingGuard,
+};
+use crate::websocket::{WebSocketManager, WebSocketServer};
+use crate::observability::{ObservabilityConfig, init_observability};
+use crate::tls::get_tls_config;
 
-impl AppState {
-    fn new() -> Self {
-        // Default to Ethereum mainnet
-        let provider_config = ProviderConfig {
-            provider_type: ProviderType::Http,
-            url: "https://mainnet.infura.io/v3/your-api-key".to_string(),
-            api_key: None,
-            timeout: Some(30),
-        };
+#[cfg(feature = "solana")]
+use crate::services::solana::SolanaServiceImpl;
 
-        // For Solana, we would use a different URL
-        // This is handled in the Solana-specific code
-
-        Self {
-            wallets: std::sync::RwLock::new(std::collections::HashMap::new()),
-            provider_config,
-        }
-    }
-
-    #[cfg(feature = "solana")]
-    fn get_solana_config(&self) -> ProviderConfig {
-        // For Solana, we use a different URL
-        ProviderConfig {
-            provider_type: ProviderType::Http,
-            url: "https://api.mainnet-beta.solana.com".to_string(),
-            api_key: None,
-            timeout: Some(30),
-        }
-    }
-
-    fn add_wallet(&self, wallet: Wallet) -> std::result::Result<(), String> {
-        let id = wallet.id().to_string();
-        let mut wallets = self.wallets.write().unwrap();
-        if wallets.contains_key(&id) {
-            return Err("Wallet already exists".to_string());
-        }
-        wallets.insert(id, wallet);
-        Ok(())
-    }
-
-    fn get_wallet(&self, id: &str) -> Option<Wallet> {
-        self.wallets.read().unwrap().get(id).cloned()
-    }
-
-    fn get_all_wallets(&self) -> Vec<Wallet> {
-        self.wallets.read().unwrap().values().cloned().collect()
-    }
-}
-
-// API error type
-#[derive(thiserror::Error, Debug)]
-enum ApiError {
-    #[error("Not found: {0}")]
-    NotFound(String),
-
-    #[error("Bad request: {0}")]
-    #[allow(dead_code)]
-    BadRequest(String),
-
-    #[error("Internal server error: {0}")]
-    InternalServerError(String),
-
-    #[error("Wallet error: {0}")]
-    Wallet(#[from] WalletError),
-}
-
-impl axum::response::IntoResponse for ApiError {
-    fn into_response(self) -> axum::response::Response {
-        let (status, error_message) = match &self {
-            Self::NotFound(msg) => (StatusCode::NOT_FOUND, msg),
-            Self::BadRequest(msg) => (StatusCode::BAD_REQUEST, msg),
-            Self::InternalServerError(msg) => (StatusCode::INTERNAL_SERVER_ERROR, msg),
-            Self::Wallet(err) => (StatusCode::BAD_REQUEST, &err.to_string()),
-        };
-
-        let body = Json(serde_json::json!({
-            "error": {
-                "message": error_message,
-                "code": status.as_u16()
+// Include the generated gRPC code
+pub mod proto {
+    pub mod fo3 {
+        pub mod wallet {
+            pub mod v1 {
+                tonic::include_proto!("fo3.wallet.v1");
             }
-        }));
-
-        (status, body).into_response()
+        }
     }
-}
-
-type Result<T> = std::result::Result<T, ApiError>;
-
-// Request and response types
-#[derive(Debug, Deserialize)]
-struct CreateWalletRequest {
-    name: String,
-}
-
-#[derive(Debug, Serialize)]
-struct WalletResponse {
-    wallet: Wallet,
-    mnemonic: Option<String>,
-}
-
-#[derive(Debug, Deserialize)]
-struct ImportWalletRequest {
-    name: String,
-    mnemonic: String,
-}
-
-#[derive(Debug, Deserialize)]
-struct DeriveAddressRequest {
-    wallet_id: String,
-    key_type: KeyType,
-    path: String,
-}
-
-#[derive(Debug, Serialize)]
-struct AddressResponse {
-    address: String,
-    key_type: KeyType,
-    path: String,
-}
-
-#[derive(Debug, Serialize)]
-struct TransactionResponse {
-    hash: String,
-    status: TransactionStatus,
-}
-
-// API handlers
-async fn create_wallet(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<CreateWalletRequest>,
-) -> Result<(StatusCode, Json<WalletResponse>)> {
-    let (wallet, mnemonic) = Wallet::new(request.name)
-        .map_err(ApiError::Wallet)?;
-
-    state.add_wallet(wallet.clone())
-        .map_err(|e| ApiError::InternalServerError(e))?;
-
-    Ok((
-        StatusCode::CREATED,
-        Json(WalletResponse {
-            wallet,
-            mnemonic: Some(mnemonic),
-        }),
-    ))
-}
-
-async fn import_wallet(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<ImportWalletRequest>,
-) -> Result<(StatusCode, Json<WalletResponse>)> {
-    let wallet = Wallet::from_mnemonic(request.name, &request.mnemonic)
-        .map_err(ApiError::Wallet)?;
-
-    state.add_wallet(wallet.clone())
-        .map_err(|e| ApiError::InternalServerError(e))?;
-
-    Ok((
-        StatusCode::CREATED,
-        Json(WalletResponse {
-            wallet,
-            mnemonic: None,
-        }),
-    ))
-}
-
-async fn get_wallet(
-    Extension(state): Extension<Arc<AppState>>,
-    Path(id): Path<String>,
-) -> Result<Json<WalletResponse>> {
-    let wallet = state.get_wallet(&id)
-        .ok_or_else(|| ApiError::NotFound(format!("Wallet not found: {}", id)))?;
-
-    Ok(Json(WalletResponse {
-        wallet,
-        mnemonic: None,
-    }))
-}
-
-async fn get_all_wallets(
-    Extension(state): Extension<Arc<AppState>>,
-) -> Result<Json<Vec<Wallet>>> {
-    let wallets = state.get_all_wallets();
-    Ok(Json(wallets))
-}
-
-async fn derive_address(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<DeriveAddressRequest>,
-) -> Result<Json<AddressResponse>> {
-    let wallet = state.get_wallet(&request.wallet_id)
-        .ok_or_else(|| ApiError::NotFound(format!("Wallet not found: {}", request.wallet_id)))?;
-
-    let address = match request.key_type {
-        KeyType::Ethereum => wallet.get_ethereum_address(&request.path, None),
-        KeyType::Solana => wallet.get_solana_address(&request.path, None),
-        KeyType::Bitcoin => wallet.get_bitcoin_address(&request.path, fo3_wallet::crypto::keys::bitcoin::Network::Bitcoin, None),
-    }.map_err(ApiError::Wallet)?;
-
-    Ok(Json(AddressResponse {
-        address,
-        key_type: request.key_type,
-        path: request.path,
-    }))
-}
-
-async fn send_transaction(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<TransactionRequest>,
-) -> Result<Json<TransactionResponse>> {
-    let provider = ProviderFactory::create_provider(request.key_type, state.provider_config.clone())
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    let hash = provider.send_transaction(&request)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    let status = provider.get_transaction_status(&hash)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(TransactionResponse {
-        hash,
-        status,
-    }))
-}
-
-async fn get_transaction(
-    Extension(state): Extension<Arc<AppState>>,
-    Path((key_type, hash)): Path<(KeyType, String)>,
-) -> Result<Json<serde_json::Value>> {
-    let provider = ProviderFactory::create_provider(key_type, state.provider_config.clone())
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    let transaction = provider.get_transaction(&hash)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(serde_json::to_value(transaction).unwrap()))
-}
-
-async fn swap_tokens(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<SwapRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let result = fo3_wallet::defi::swap_tokens(&request, &state.provider_config)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(serde_json::to_value(result).unwrap()))
-}
-
-async fn get_supported_tokens(
-    Extension(state): Extension<Arc<AppState>>,
-    Path(key_type): Path<KeyType>,
-) -> Result<Json<Vec<Token>>> {
-    let tokens = fo3_wallet::defi::get_supported_tokens(key_type, &state.provider_config)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(tokens))
-}
-
-async fn execute_lending(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<LendingRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let result = fo3_wallet::defi::execute_lending(&request, &state.provider_config)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(serde_json::to_value(result).unwrap()))
-}
-
-async fn execute_staking(
-    Extension(state): Extension<Arc<AppState>>,
-    Json(request): Json<StakingRequest>,
-) -> Result<Json<serde_json::Value>> {
-    let result = fo3_wallet::defi::execute_staking(&request, &state.provider_config)
-        .map_err(|e| ApiError::Wallet(e))?;
-
-    Ok(Json(serde_json::to_value(result).unwrap()))
-}
-
-async fn health_check() -> &'static str {
-    "OK"
 }
 
 #[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    // Initialize tracing
+async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize observability
+    let observability_config = ObservabilityConfig::default();
+    let metrics = init_observability(observability_config).await?;
+
+    // Initialize tracing with OpenTelemetry
     tracing_subscriber::registry()
         .with(tracing_subscriber::EnvFilter::new(
             std::env::var("RUST_LOG").unwrap_or_else(|_| "info,tower_http=debug".into()),
         ))
         .with(tracing_subscriber::fmt::layer())
+        .with(tracing_opentelemetry::layer())
         .init();
+
+    tracing::info!("Starting FO3 Wallet Core API with enhanced security and observability");
 
     // Create application state
     let state = Arc::new(AppState::new());
 
-    // Build our application with routes
-    let mut app = Router::new()
-        .route("/health", get(health_check))
-        // Wallet routes
-        .route("/wallets", get(get_all_wallets))
-        .route("/wallets", post(create_wallet))
-        .route("/wallets/:id", get(get_wallet))
-        .route("/wallets/import", post(import_wallet))
-        .route("/wallets/derive-address", post(derive_address))
-        // Transaction routes
-        .route("/transactions", post(send_transaction))
-        .route("/transactions/:key_type/:hash", get(get_transaction))
-        // DeFi routes
-        .route("/defi/tokens/:key_type", get(get_supported_tokens))
-        .route("/defi/swap", post(swap_tokens))
-        .route("/defi/lending", post(execute_lending))
-        .route("/defi/staking", post(execute_staking));
+    // Initialize security services
+    let auth_service = Arc::new(AuthService::new(state.clone()));
+    let rate_limiter = Arc::new(RateLimiter::new());
+    let audit_logger = Arc::new(AuditLogger::new(state.clone()));
+    let kyc_guard = Arc::new(KycGuard::new(state.clone(), auth_service.clone()));
+    let fiat_guard = Arc::new(FiatGuard::new(state.clone(), auth_service.clone(), kyc_guard.clone()));
+    let pricing_guard = Arc::new(PricingGuard::new(state.clone(), auth_service.clone(), None));
 
-    // Add Solana-specific routes if the feature is enabled
+    // Initialize WebSocket manager
+    let websocket_manager = Arc::new(WebSocketManager::new(auth_service.clone()));
+
+    // Create gRPC services with authentication
+    let wallet_service = WalletServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone());
+    let transaction_service = TransactionServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone());
+    let defi_service = DefiServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone());
+    let health_service = HealthServiceImpl::new();
+    let auth_grpc_service = AuthServiceImpl::new(auth_service.clone(), audit_logger.clone());
+    let event_service = EventServiceImpl::new(websocket_manager.clone(), auth_service.clone());
+    let kyc_service = KycServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone());
+    let fiat_gateway_service = FiatGatewayServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone(), fiat_guard.clone());
+    let pricing_service = PricingServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        pricing_guard.clone()
+    );
+    let notification_service = NotificationServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        websocket_manager.clone()
+    );
+    let card_service = CardServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone()
+    );
+    let spending_insights_service = SpendingInsightsServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone()
+    );
+
+    // Get server addresses
+    let grpc_addr: SocketAddr = std::env::var("GRPC_LISTEN_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:50051".to_string())
+        .parse()?;
+
+    let websocket_addr: SocketAddr = std::env::var("WEBSOCKET_LISTEN_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:8080".to_string())
+        .parse()?;
+
+    let metrics_addr: SocketAddr = std::env::var("METRICS_LISTEN_ADDR")
+        .unwrap_or_else(|_| "0.0.0.0:9090".to_string())
+        .parse()?;
+
+    // Configure TLS if enabled
+    let tls_config = get_tls_config()?;
+
+    // Build the gRPC server
+    let mut server_builder = if let Some(tls) = tls_config {
+        tracing::info!("TLS enabled for gRPC server");
+        Server::builder().tls_config(tls.server_config)?
+    } else {
+        tracing::warn!("TLS disabled - not recommended for production");
+        Server::builder()
+    };
+
+    // Add services with authentication and rate limiting
+    server_builder = server_builder
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::wallet_service_server::WalletServiceServer::new(wallet_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::transaction_service_server::TransactionServiceServer::new(transaction_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::defi_service_server::DefiServiceServer::new(defi_service)
+            )
+        )
+        .add_service(
+            proto::fo3::wallet::v1::health_service_server::HealthServiceServer::new(health_service)
+        )
+        .add_service(
+            proto::fo3::wallet::v1::auth_service_server::AuthServiceServer::new(auth_grpc_service)
+        )
+        .add_service(
+            proto::fo3::wallet::v1::event_service_server::EventServiceServer::new(event_service)
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::kyc_service_server::KycServiceServer::new(kyc_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::fiat_gateway_service_server::FiatGatewayServiceServer::new(fiat_gateway_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::pricing_service_server::PricingServiceServer::new(pricing_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::notification_service_server::NotificationServiceServer::new(notification_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::card_service_server::CardServiceServer::new(card_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::spending_insights_service_server::SpendingInsightsServiceServer::new(spending_insights_service)
+            )
+        );
+
+    // Add Solana service if feature is enabled
     #[cfg(feature = "solana")]
     {
-        app = app
-            .route("/solana/token-balance", post(solana::get_token_balance))
-            .route("/solana/token-info/:token_mint", get(solana::get_token_info))
-            .route("/solana/transfer-tokens", post(solana::transfer_tokens))
-            .route("/solana/stake", post(solana::stake_sol))
-            .route("/solana/staking-info/:stake_account", get(solana::get_staking_info))
-            // Raydium routes
-            .route("/defi/swap/pairs", get(raydium::get_token_pairs))
-            .route("/defi/swap/preview", post(raydium::get_swap_preview))
-            .route("/defi/swap/execute", post(raydium::execute_swap))
-            // Orca routes
-            .route("/defi/swap/orca/pairs", get(orca::get_token_pairs))
-            .route("/defi/swap/orca/preview", post(orca::get_swap_preview))
-            .route("/defi/swap/orca/execute", post(orca::execute_swap))
-            // NFT routes
-            .route("/nft/:wallet_address", get(nft::get_nfts_by_owner))
-            .route("/nft/:mint/metadata", get(nft::get_nft_metadata))
-            .route("/nft/transfer", post(nft::transfer_nft))
-            .route("/nft/mint", post(nft::mint_nft));
+        let solana_service = SolanaServiceImpl::new(state.clone(), auth_service.clone(), audit_logger.clone());
+        server_builder = server_builder.add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::solana_service_server::SolanaServiceServer::new(solana_service)
+            )
+        );
     }
 
-    // Add state extension
-    let app = app.layer(Extension(state));
+    // Start background tasks
+    let rate_limiter_cleanup = rate_limiter.clone();
+    tokio::spawn(async move {
+        crate::middleware::rate_limit::cleanup_rate_limit_buckets(rate_limiter_cleanup).await;
+    });
 
-    // Run the server
-    let addr = SocketAddr::from(([127, 0, 0, 1], 8080));
-    tracing::info!("Listening on {}", addr);
-    // let listener = tokio::net::TcpListener::bind(addr).await?;
-    axum::Server::bind(&addr)
-        .serve(app.into_make_service())
-        .await?;
+    let websocket_cleanup = websocket_manager.clone();
+    tokio::spawn(async move {
+        crate::websocket::cleanup_stale_connections_task(websocket_cleanup).await;
+    });
+
+    // Start WebSocket server
+    let websocket_server = WebSocketServer::new(websocket_manager.clone());
+    let websocket_handle = {
+        let server = websocket_server;
+        tokio::spawn(async move {
+            if let Err(e) = server.start(websocket_addr).await {
+                tracing::error!("WebSocket server error: {}", e);
+            }
+        })
+    };
+
+    // Start metrics server
+    let metrics_handle = {
+        let metrics_router = crate::observability::create_metrics_handler(metrics.clone());
+        let metrics_app = Router::new().nest("/", metrics_router);
+
+        tokio::spawn(async move {
+            let listener = tokio::net::TcpListener::bind(metrics_addr).await.unwrap();
+            tracing::info!("Metrics server listening on {}", metrics_addr);
+            axum::serve(listener, metrics_app).await.unwrap();
+        })
+    };
+
+    tracing::info!("Starting secure gRPC server on {}", grpc_addr);
+    tracing::info!("WebSocket server starting on {}", websocket_addr);
+    tracing::info!("Metrics server starting on {}", metrics_addr);
+
+    // Start the gRPC server
+    let grpc_handle = tokio::spawn(async move {
+        if let Err(e) = server_builder.serve(grpc_addr).await {
+            tracing::error!("gRPC server error: {}", e);
+        }
+    });
+
+    // Wait for all servers
+    tokio::select! {
+        _ = grpc_handle => tracing::info!("gRPC server stopped"),
+        _ = websocket_handle => tracing::info!("WebSocket server stopped"),
+        _ = metrics_handle => tracing::info!("Metrics server stopped"),
+        _ = tokio::signal::ctrl_c() => {
+            tracing::info!("Received shutdown signal");
+        }
+    }
+
+    // Cleanup
+    opentelemetry::global::shutdown_tracer_provider();
+    tracing::info!("FO3 Wallet Core API shutdown complete");
 
     Ok(())
 }
+
+
