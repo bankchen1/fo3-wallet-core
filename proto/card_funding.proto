@@ -1,0 +1,453 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Card funding service for multi-source virtual card funding
+service CardFundingService {
+  // Core funding operations
+  rpc AddFundingSource(AddFundingSourceRequest) returns (AddFundingSourceResponse);
+  rpc GetFundingSource(GetFundingSourceRequest) returns (GetFundingSourceResponse);
+  rpc ListFundingSources(ListFundingSourcesRequest) returns (ListFundingSourcesResponse);
+  rpc UpdateFundingSource(UpdateFundingSourceRequest) returns (UpdateFundingSourceResponse);
+  rpc RemoveFundingSource(RemoveFundingSourceRequest) returns (RemoveFundingSourceResponse);
+  
+  // Card funding operations
+  rpc FundCard(FundCardRequest) returns (FundCardResponse);
+  rpc GetFundingHistory(GetFundingHistoryRequest) returns (GetFundingHistoryResponse);
+  rpc EstimateFundingFee(EstimateFundingFeeRequest) returns (EstimateFundingFeeResponse);
+  rpc GetFundingLimits(GetFundingLimitsRequest) returns (GetFundingLimitsResponse);
+  
+  // Crypto funding operations
+  rpc InitiateCryptoFunding(InitiateCryptoFundingRequest) returns (InitiateCryptoFundingResponse);
+  rpc ConfirmCryptoFunding(ConfirmCryptoFundingRequest) returns (ConfirmCryptoFundingResponse);
+  rpc GetCryptoFundingStatus(GetCryptoFundingStatusRequest) returns (GetCryptoFundingStatusResponse);
+  
+  // ACH and external card operations
+  rpc InitiateACHFunding(InitiateACHFundingRequest) returns (InitiateACHFundingResponse);
+  rpc InitiateCardFunding(InitiateCardFundingRequest) returns (InitiateCardFundingResponse);
+  rpc GetFundingStatus(GetFundingStatusRequest) returns (GetFundingStatusResponse);
+  
+  // Admin operations
+  rpc GetUserFundingSources(GetUserFundingSourcesRequest) returns (GetUserFundingSourcesResponse);
+  rpc GetFundingMetrics(GetFundingMetricsRequest) returns (GetFundingMetricsResponse);
+  rpc UpdateFundingLimits(UpdateFundingLimitsRequest) returns (UpdateFundingLimitsResponse);
+}
+
+// Funding source types
+enum FundingSourceType {
+  FUNDING_SOURCE_TYPE_UNSPECIFIED = 0;
+  FUNDING_SOURCE_TYPE_BANK_ACCOUNT = 1;    // Linked bank account
+  FUNDING_SOURCE_TYPE_CRYPTO_WALLET = 2;   // USDT/USDC wallet
+  FUNDING_SOURCE_TYPE_ACH = 3;             // ACH transfer
+  FUNDING_SOURCE_TYPE_EXTERNAL_CARD = 4;   // External debit/credit card
+  FUNDING_SOURCE_TYPE_FIAT_ACCOUNT = 5;    // Existing fiat account
+}
+
+// Funding source status
+enum FundingSourceStatus {
+  FUNDING_SOURCE_STATUS_UNSPECIFIED = 0;
+  FUNDING_SOURCE_STATUS_PENDING = 1;       // Verification pending
+  FUNDING_SOURCE_STATUS_ACTIVE = 2;        // Active and verified
+  FUNDING_SOURCE_STATUS_SUSPENDED = 3;     // Temporarily suspended
+  FUNDING_SOURCE_STATUS_EXPIRED = 4;       // Expired (cards)
+  FUNDING_SOURCE_STATUS_REMOVED = 5;       // User removed
+}
+
+// Funding transaction status
+enum FundingTransactionStatus {
+  FUNDING_TRANSACTION_STATUS_UNSPECIFIED = 0;
+  FUNDING_TRANSACTION_STATUS_PENDING = 1;      // Transaction initiated
+  FUNDING_TRANSACTION_STATUS_PROCESSING = 2;   // Being processed
+  FUNDING_TRANSACTION_STATUS_COMPLETED = 3;    // Successfully completed
+  FUNDING_TRANSACTION_STATUS_FAILED = 4;       // Failed
+  FUNDING_TRANSACTION_STATUS_CANCELLED = 5;    // User cancelled
+  FUNDING_TRANSACTION_STATUS_REFUNDED = 6;     // Refunded
+}
+
+// Crypto currency types supported for funding
+enum CryptoCurrency {
+  CRYPTO_CURRENCY_UNSPECIFIED = 0;
+  CRYPTO_CURRENCY_USDT = 1;    // Tether USD
+  CRYPTO_CURRENCY_USDC = 2;    // USD Coin
+  CRYPTO_CURRENCY_DAI = 3;     // Dai Stablecoin
+  CRYPTO_CURRENCY_BUSD = 4;    // Binance USD
+}
+
+// Funding source entity
+message FundingSource {
+  string id = 1;                           // Unique funding source ID
+  string user_id = 2;                      // Owner user ID
+  FundingSourceType type = 3;              // Source type
+  FundingSourceStatus status = 4;          // Current status
+  string name = 5;                         // User-defined name
+  string masked_identifier = 6;            // Masked account/card number
+  string currency = 7;                     // Source currency
+  string provider = 8;                     // Provider name (bank, exchange, etc.)
+  FundingSourceLimits limits = 9;          // Funding limits
+  FundingSourceMetadata metadata = 10;     // Type-specific metadata
+  bool is_primary = 11;                    // Primary funding source
+  bool is_verified = 12;                   // Verification status
+  string created_at = 13;                  // Creation timestamp
+  string updated_at = 14;                  // Last update timestamp
+  string expires_at = 15;                  // Expiration (for cards)
+}
+
+// Funding source limits
+message FundingSourceLimits {
+  string daily_limit = 1;                  // Daily funding limit
+  string monthly_limit = 2;                // Monthly funding limit
+  string per_transaction_limit = 3;        // Per-transaction limit
+  string minimum_amount = 4;               // Minimum funding amount
+  int32 daily_transaction_count = 5;       // Daily transaction count limit
+  int32 monthly_transaction_count = 6;     // Monthly transaction count limit
+}
+
+// Type-specific metadata for funding sources
+message FundingSourceMetadata {
+  oneof metadata {
+    BankAccountMetadata bank_account = 1;
+    CryptoWalletMetadata crypto_wallet = 2;
+    ExternalCardMetadata external_card = 3;
+    ACHMetadata ach = 4;
+  }
+}
+
+message BankAccountMetadata {
+  string account_type = 1;                 // checking, savings
+  string routing_number = 2;               // Bank routing number
+  string bank_name = 3;                    // Bank name
+}
+
+message CryptoWalletMetadata {
+  CryptoCurrency currency = 1;             // Crypto currency type
+  string network = 2;                      // Blockchain network
+  string wallet_address = 3;               // Wallet address
+  string exchange_name = 4;                // Exchange name (if applicable)
+}
+
+message ExternalCardMetadata {
+  string card_type = 1;                    // debit, credit
+  string issuer = 2;                       // Card issuer
+  string last_four = 3;                    // Last 4 digits
+  string expiry_month = 4;                 // Expiry month
+  string expiry_year = 5;                  // Expiry year
+}
+
+message ACHMetadata {
+  string ach_type = 1;                     // standard, same_day
+  string processor = 2;                    // ACH processor
+}
+
+// Funding transaction entity
+message FundingTransaction {
+  string id = 1;                           // Unique transaction ID
+  string user_id = 2;                      // User ID
+  string card_id = 3;                      // Target card ID
+  string funding_source_id = 4;            // Source funding ID
+  FundingTransactionStatus status = 5;     // Transaction status
+  string amount = 6;                       // Funding amount
+  string currency = 7;                     // Currency
+  string fee_amount = 8;                   // Fee charged
+  string fee_percentage = 9;               // Fee percentage
+  string exchange_rate = 10;               // Exchange rate (for crypto)
+  string net_amount = 11;                  // Net amount received
+  string reference_number = 12;            // Reference number
+  string external_transaction_id = 13;     // External provider transaction ID
+  string description = 14;                 // Transaction description
+  string created_at = 15;                  // Creation timestamp
+  string completed_at = 16;                // Completion timestamp
+  string failure_reason = 17;              // Failure reason (if failed)
+  map<string, string> metadata = 18;       // Additional metadata
+}
+
+// Fee calculation details
+message FeeCalculation {
+  string base_amount = 1;                  // Base funding amount
+  string fee_percentage = 2;               // Fee percentage
+  string fee_amount = 3;                   // Calculated fee amount
+  string net_amount = 4;                   // Amount after fees
+  string exchange_rate = 5;                // Exchange rate (if applicable)
+  string exchange_fee = 6;                 // Exchange fee (if applicable)
+  string total_fee = 7;                    // Total fees
+  repeated FeeBreakdown fee_breakdown = 8; // Detailed fee breakdown
+}
+
+message FeeBreakdown {
+  string fee_type = 1;                     // Type of fee
+  string amount = 2;                       // Fee amount
+  string description = 3;                  // Fee description
+}
+
+// Funding limits for user
+message FundingLimits {
+  string daily_limit = 1;                  // Daily funding limit
+  string monthly_limit = 2;                // Monthly funding limit
+  string yearly_limit = 3;                 // Yearly funding limit
+  string per_transaction_limit = 4;        // Per-transaction limit
+  string daily_used = 5;                   // Daily amount used
+  string monthly_used = 6;                 // Monthly amount used
+  string yearly_used = 7;                  // Yearly amount used
+  int32 daily_transaction_count = 8;       // Daily transaction count
+  int32 monthly_transaction_count = 9;     // Monthly transaction count
+  int32 daily_transactions_used = 10;      // Daily transactions used
+  int32 monthly_transactions_used = 11;    // Monthly transactions used
+}
+
+// Crypto funding details
+message CryptoFundingDetails {
+  CryptoCurrency currency = 1;             // Crypto currency
+  string network = 2;                      // Blockchain network
+  string deposit_address = 3;              // Deposit address
+  string required_confirmations = 4;       // Required confirmations
+  string current_confirmations = 5;        // Current confirmations
+  string transaction_hash = 6;             // Blockchain transaction hash
+  string exchange_rate = 7;                // Current exchange rate
+  string expires_at = 8;                   // Deposit address expiration
+}
+
+// Request/Response messages for funding source operations
+message AddFundingSourceRequest {
+  FundingSourceType type = 1;
+  string name = 2;
+  string currency = 3;
+  string provider = 4;
+  FundingSourceMetadata metadata = 5;
+  FundingSourceLimits limits = 6;
+}
+
+message AddFundingSourceResponse {
+  FundingSource funding_source = 1;
+  bool requires_verification = 2;
+  string verification_url = 3;
+}
+
+message GetFundingSourceRequest {
+  string funding_source_id = 1;
+}
+
+message GetFundingSourceResponse {
+  FundingSource funding_source = 1;
+}
+
+message ListFundingSourcesRequest {
+  FundingSourceType type = 1;              // Filter by type (optional)
+  FundingSourceStatus status = 2;          // Filter by status (optional)
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListFundingSourcesResponse {
+  repeated FundingSource funding_sources = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UpdateFundingSourceRequest {
+  string funding_source_id = 1;
+  string name = 2;
+  FundingSourceLimits limits = 3;
+  bool is_primary = 4;
+}
+
+message UpdateFundingSourceResponse {
+  FundingSource funding_source = 1;
+}
+
+message RemoveFundingSourceRequest {
+  string funding_source_id = 1;
+  string reason = 2;
+}
+
+message RemoveFundingSourceResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Card funding operation messages
+message FundCardRequest {
+  string card_id = 1;
+  string funding_source_id = 2;
+  string amount = 3;
+  string currency = 4;
+  string description = 5;
+  bool accept_fees = 6;                    // User accepts calculated fees
+}
+
+message FundCardResponse {
+  FundingTransaction transaction = 1;
+  FeeCalculation fee_calculation = 2;
+  string new_card_balance = 3;
+}
+
+message GetFundingHistoryRequest {
+  string card_id = 1;                      // Filter by card (optional)
+  string funding_source_id = 2;            // Filter by source (optional)
+  FundingTransactionStatus status = 3;     // Filter by status (optional)
+  string start_date = 4;                   // Start date filter
+  string end_date = 5;                     // End date filter
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message GetFundingHistoryResponse {
+  repeated FundingTransaction transactions = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message EstimateFundingFeeRequest {
+  string funding_source_id = 1;
+  string amount = 2;
+  string currency = 3;
+}
+
+message EstimateFundingFeeResponse {
+  FeeCalculation fee_calculation = 1;
+  string estimated_completion_time = 2;
+}
+
+message GetFundingLimitsRequest {
+  string user_id = 1;                      // Admin only
+}
+
+message GetFundingLimitsResponse {
+  FundingLimits limits = 1;
+}
+
+// Crypto funding operation messages
+message InitiateCryptoFundingRequest {
+  string card_id = 1;
+  CryptoCurrency currency = 2;
+  string amount = 3;                       // Amount in crypto
+  string network = 4;                      // Blockchain network
+}
+
+message InitiateCryptoFundingResponse {
+  string funding_id = 1;
+  CryptoFundingDetails funding_details = 2;
+  FeeCalculation fee_calculation = 3;
+  string expires_at = 4;                   // Funding expiration
+}
+
+message ConfirmCryptoFundingRequest {
+  string funding_id = 1;
+  string transaction_hash = 2;             // Blockchain transaction hash
+}
+
+message ConfirmCryptoFundingResponse {
+  FundingTransaction transaction = 1;
+  string confirmation_status = 2;
+}
+
+message GetCryptoFundingStatusRequest {
+  string funding_id = 1;
+}
+
+message GetCryptoFundingStatusResponse {
+  CryptoFundingDetails funding_details = 1;
+  FundingTransaction transaction = 2;
+}
+
+// ACH funding operation messages
+message InitiateACHFundingRequest {
+  string card_id = 1;
+  string bank_account_id = 2;              // From fiat gateway
+  string amount = 3;
+  string description = 4;
+  bool same_day = 5;                       // Same-day ACH (higher fee)
+}
+
+message InitiateACHFundingResponse {
+  FundingTransaction transaction = 1;
+  FeeCalculation fee_calculation = 2;
+  string estimated_completion = 3;
+}
+
+// External card funding operation messages
+message InitiateCardFundingRequest {
+  string card_id = 1;
+  string external_card_id = 2;             // External card funding source
+  string amount = 3;
+  string description = 4;
+}
+
+message InitiateCardFundingResponse {
+  FundingTransaction transaction = 1;
+  FeeCalculation fee_calculation = 2;
+  string authorization_url = 3;            // 3DS authorization URL
+}
+
+message GetFundingStatusRequest {
+  string transaction_id = 1;
+}
+
+message GetFundingStatusResponse {
+  FundingTransaction transaction = 1;
+  string status_details = 2;
+}
+
+// Admin operation messages
+message GetUserFundingSourcesRequest {
+  string user_id = 1;
+  FundingSourceType type = 2;              // Filter by type (optional)
+  FundingSourceStatus status = 3;          // Filter by status (optional)
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message GetUserFundingSourcesResponse {
+  repeated FundingSource funding_sources = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetFundingMetricsRequest {
+  string start_date = 1;                   // Metrics start date
+  string end_date = 2;                     // Metrics end date
+  FundingSourceType type = 3;              // Filter by type (optional)
+  string currency = 4;                     // Filter by currency (optional)
+}
+
+message GetFundingMetricsResponse {
+  FundingMetrics metrics = 1;
+}
+
+message FundingMetrics {
+  string total_volume = 1;                 // Total funding volume
+  string total_fees = 2;                   // Total fees collected
+  int32 total_transactions = 3;            // Total transaction count
+  string average_transaction_size = 4;     // Average transaction size
+  repeated FundingSourceMetrics by_source = 5; // Metrics by source type
+  repeated CurrencyMetrics by_currency = 6;    // Metrics by currency
+  string success_rate = 7;                 // Transaction success rate
+}
+
+message FundingSourceMetrics {
+  FundingSourceType type = 1;
+  string volume = 2;
+  string fees = 3;
+  int32 transaction_count = 4;
+  string success_rate = 5;
+}
+
+message CurrencyMetrics {
+  string currency = 1;
+  string volume = 2;
+  string fees = 3;
+  int32 transaction_count = 4;
+}
+
+message UpdateFundingLimitsRequest {
+  string user_id = 1;
+  FundingLimits limits = 2;
+  string reason = 3;                       // Reason for limit change
+}
+
+message UpdateFundingLimitsResponse {
+  FundingLimits limits = 1;
+  bool success = 2;
+  string message = 3;
+}

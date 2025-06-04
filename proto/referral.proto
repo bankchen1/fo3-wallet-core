@@ -1,0 +1,711 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Referral service for user acquisition and retention through referral programs
+service ReferralService {
+  // Referral code operations
+  rpc GenerateReferralCode(GenerateReferralCodeRequest) returns (GenerateReferralCodeResponse);
+  rpc GetReferralCode(GetReferralCodeRequest) returns (GetReferralCodeResponse);
+  rpc ValidateReferralCode(ValidateReferralCodeRequest) returns (ValidateReferralCodeResponse);
+  rpc DeactivateReferralCode(DeactivateReferralCodeRequest) returns (DeactivateReferralCodeResponse);
+  rpc ListUserReferralCodes(ListUserReferralCodesRequest) returns (ListUserReferralCodesResponse);
+  
+  // Referral relationship operations
+  rpc CreateReferralRelationship(CreateReferralRelationshipRequest) returns (CreateReferralRelationshipResponse);
+  rpc GetReferralRelationship(GetReferralRelationshipRequest) returns (GetReferralRelationshipResponse);
+  rpc ListReferralRelationships(ListReferralRelationshipsRequest) returns (ListReferralRelationshipsResponse);
+  rpc GetReferralTree(GetReferralTreeRequest) returns (GetReferralTreeResponse);
+  rpc GetReferralStats(GetReferralStatsRequest) returns (GetReferralStatsResponse);
+  
+  // Referral campaign operations
+  rpc CreateReferralCampaign(CreateReferralCampaignRequest) returns (CreateReferralCampaignResponse);
+  rpc GetReferralCampaign(GetReferralCampaignRequest) returns (GetReferralCampaignResponse);
+  rpc ListReferralCampaigns(ListReferralCampaignsRequest) returns (ListReferralCampaignsResponse);
+  rpc UpdateReferralCampaign(UpdateReferralCampaignRequest) returns (UpdateReferralCampaignResponse);
+  rpc DeleteReferralCampaign(DeleteReferralCampaignRequest) returns (DeleteReferralCampaignResponse);
+  
+  // Referral bonus operations
+  rpc ProcessReferralBonus(ProcessReferralBonusRequest) returns (ProcessReferralBonusResponse);
+  rpc GetReferralBonuses(GetReferralBonusesRequest) returns (GetReferralBonusesResponse);
+  rpc ListReferralBonuses(ListReferralBonusesRequest) returns (ListReferralBonusesResponse);
+  rpc ClaimReferralBonus(ClaimReferralBonusRequest) returns (ClaimReferralBonusResponse);
+  
+  // Analytics and reporting
+  rpc GetReferralMetrics(GetReferralMetricsRequest) returns (GetReferralMetricsResponse);
+  rpc GetUserReferralAnalytics(GetUserReferralAnalyticsRequest) returns (GetUserReferralAnalyticsResponse);
+  rpc GenerateReferralReport(GenerateReferralReportRequest) returns (GenerateReferralReportResponse);
+  rpc ExportReferralData(ExportReferralDataRequest) returns (ExportReferralDataResponse);
+  
+  // Administrative operations
+  rpc BulkProcessBonuses(BulkProcessBonusesRequest) returns (BulkProcessBonusesResponse);
+  rpc FlagSuspiciousActivity(FlagSuspiciousActivityRequest) returns (FlagSuspiciousActivityResponse);
+  rpc GetReferralAuditTrail(GetReferralAuditTrailRequest) returns (GetReferralAuditTrailResponse);
+  rpc RecalculateReferralMetrics(RecalculateReferralMetricsRequest) returns (RecalculateReferralMetricsResponse);
+}
+
+// Referral code status
+enum ReferralCodeStatus {
+  REFERRAL_CODE_STATUS_UNSPECIFIED = 0;
+  REFERRAL_CODE_STATUS_ACTIVE = 1;
+  REFERRAL_CODE_STATUS_INACTIVE = 2;
+  REFERRAL_CODE_STATUS_EXPIRED = 3;
+  REFERRAL_CODE_STATUS_SUSPENDED = 4;
+  REFERRAL_CODE_STATUS_EXHAUSTED = 5;        // Max uses reached
+}
+
+// Referral relationship status
+enum ReferralRelationshipStatus {
+  REFERRAL_RELATIONSHIP_STATUS_UNSPECIFIED = 0;
+  REFERRAL_RELATIONSHIP_STATUS_PENDING = 1;
+  REFERRAL_RELATIONSHIP_STATUS_ACTIVE = 2;
+  REFERRAL_RELATIONSHIP_STATUS_COMPLETED = 3;
+  REFERRAL_RELATIONSHIP_STATUS_CANCELLED = 4;
+  REFERRAL_RELATIONSHIP_STATUS_FRAUDULENT = 5;
+}
+
+// Referral campaign types
+enum ReferralCampaignType {
+  REFERRAL_CAMPAIGN_TYPE_UNSPECIFIED = 0;
+  REFERRAL_CAMPAIGN_TYPE_SIGNUP = 1;         // Bonus for successful signup
+  REFERRAL_CAMPAIGN_TYPE_FIRST_TRANSACTION = 2; // Bonus for first transaction
+  REFERRAL_CAMPAIGN_TYPE_SPENDING_MILESTONE = 3; // Bonus for spending milestones
+  REFERRAL_CAMPAIGN_TYPE_TIER_UPGRADE = 4;   // Bonus for tier upgrades
+  REFERRAL_CAMPAIGN_TYPE_MULTI_LEVEL = 5;    // Multi-level referral bonuses
+  REFERRAL_CAMPAIGN_TYPE_TIME_LIMITED = 6;   // Time-limited promotions
+}
+
+// Referral campaign status
+enum ReferralCampaignStatus {
+  REFERRAL_CAMPAIGN_STATUS_UNSPECIFIED = 0;
+  REFERRAL_CAMPAIGN_STATUS_DRAFT = 1;
+  REFERRAL_CAMPAIGN_STATUS_ACTIVE = 2;
+  REFERRAL_CAMPAIGN_STATUS_PAUSED = 3;
+  REFERRAL_CAMPAIGN_STATUS_COMPLETED = 4;
+  REFERRAL_CAMPAIGN_STATUS_CANCELLED = 5;
+}
+
+// Referral bonus types
+enum ReferralBonusType {
+  REFERRAL_BONUS_TYPE_UNSPECIFIED = 0;
+  REFERRAL_BONUS_TYPE_REFERRER = 1;          // Bonus for the referrer
+  REFERRAL_BONUS_TYPE_REFEREE = 2;           // Bonus for the referee
+  REFERRAL_BONUS_TYPE_MILESTONE = 3;         // Milestone-based bonus
+  REFERRAL_BONUS_TYPE_TIER_BONUS = 4;        // Tier-based multiplier bonus
+  REFERRAL_BONUS_TYPE_CAMPAIGN_BONUS = 5;    // Campaign-specific bonus
+}
+
+// Referral bonus status
+enum ReferralBonusStatus {
+  REFERRAL_BONUS_STATUS_UNSPECIFIED = 0;
+  REFERRAL_BONUS_STATUS_PENDING = 1;
+  REFERRAL_BONUS_STATUS_PROCESSING = 2;
+  REFERRAL_BONUS_STATUS_COMPLETED = 3;
+  REFERRAL_BONUS_STATUS_FAILED = 4;
+  REFERRAL_BONUS_STATUS_CANCELLED = 5;
+  REFERRAL_BONUS_STATUS_EXPIRED = 6;
+}
+
+// Referral code entity
+message ReferralCode {
+  string id = 1;
+  string user_id = 2;                        // Owner of the referral code
+  string code = 3;                           // Unique referral code
+  ReferralCodeStatus status = 4;
+  
+  // Code configuration
+  string campaign_id = 5;                    // Associated campaign
+  string description = 6;
+  bool is_custom = 7;                        // Custom vs auto-generated
+  
+  // Usage tracking
+  int32 max_uses = 8;                        // -1 for unlimited
+  int32 current_uses = 9;
+  int32 successful_referrals = 10;
+  int32 pending_referrals = 11;
+  
+  // Time constraints
+  string expires_at = 12;                    // ISO 8601 timestamp
+  string last_used_at = 13;                  // ISO 8601 timestamp
+  
+  // Metadata
+  map<string, string> metadata = 14;
+  string created_at = 15;                    // ISO 8601 timestamp
+  string updated_at = 16;                    // ISO 8601 timestamp
+}
+
+// Referral relationship entity
+message ReferralRelationship {
+  string id = 1;
+  string referrer_user_id = 2;               // User who made the referral
+  string referee_user_id = 3;                // User who was referred
+  string referral_code_id = 4;               // Referral code used
+  string campaign_id = 5;                    // Associated campaign
+  ReferralRelationshipStatus status = 6;
+  
+  // Relationship details
+  int32 referral_level = 7;                  // 1 = direct, 2 = sub-referral, etc.
+  string parent_relationship_id = 8;         // For multi-level tracking
+  
+  // Milestone tracking
+  bool signup_completed = 9;
+  bool first_transaction_completed = 10;
+  bool kyc_completed = 11;
+  string first_transaction_date = 12;        // ISO 8601 timestamp
+  string kyc_completion_date = 13;           // ISO 8601 timestamp
+  
+  // Bonus tracking
+  string total_bonuses_earned = 14;          // Decimal string for total bonuses
+  string total_bonuses_paid = 15;            // Decimal string for bonuses paid
+  int32 bonuses_pending = 16;                // Number of pending bonuses
+  
+  // Fraud detection
+  bool is_suspicious = 17;
+  repeated string fraud_flags = 18;          // List of fraud indicators
+  string fraud_check_date = 19;             // ISO 8601 timestamp
+  
+  // Metadata
+  string referral_source = 20;               // web, mobile, email, etc.
+  string ip_address = 21;                    // IP address at time of referral
+  string user_agent = 22;                    // User agent at time of referral
+  map<string, string> metadata = 23;
+  string created_at = 24;                    // ISO 8601 timestamp
+  string updated_at = 25;                    // ISO 8601 timestamp
+}
+
+// Referral campaign entity
+message ReferralCampaign {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  ReferralCampaignType type = 4;
+  ReferralCampaignStatus status = 5;
+  
+  // Campaign configuration
+  string referrer_bonus = 6;                 // Decimal string for referrer bonus
+  string referee_bonus = 7;                  // Decimal string for referee bonus
+  string bonus_currency = 8;                 // Currency for bonuses (points, USD, etc.)
+  string minimum_transaction_amount = 9;     // Decimal string for minimum transaction
+  
+  // Multi-level configuration
+  bool is_multi_level = 10;
+  int32 max_levels = 11;                     // Maximum referral levels
+  repeated string level_multipliers = 12;    // Multipliers for each level
+  
+  // Time constraints
+  string start_date = 13;                    // ISO 8601 timestamp
+  string end_date = 14;                      // ISO 8601 timestamp
+  int32 bonus_expiry_days = 15;              // Days until bonus expires
+  
+  // Usage limits
+  int32 max_referrals_per_user = 16;         // -1 for unlimited
+  int32 max_total_referrals = 17;            // -1 for unlimited
+  string max_bonus_per_user = 18;            // Decimal string for max bonus per user
+  string total_budget = 19;                  // Decimal string for total campaign budget
+  string budget_used = 20;                   // Decimal string for budget used
+  
+  // Targeting
+  repeated string target_user_tiers = 21;    // Target user tiers
+  repeated string target_countries = 22;     // Target countries
+  repeated string excluded_users = 23;       // Excluded user IDs
+  
+  // Metadata
+  map<string, string> metadata = 24;
+  string created_at = 25;                    // ISO 8601 timestamp
+  string updated_at = 26;                    // ISO 8601 timestamp
+  string created_by = 27;                    // User ID who created the campaign
+}
+
+// Referral bonus entity
+message ReferralBonus {
+  string id = 1;
+  string referral_relationship_id = 2;       // Associated referral relationship
+  string campaign_id = 3;                    // Associated campaign
+  string user_id = 4;                        // User receiving the bonus
+  ReferralBonusType type = 5;
+  ReferralBonusStatus status = 6;
+  
+  // Bonus details
+  string bonus_amount = 7;                   // Decimal string for bonus amount
+  string bonus_currency = 8;                 // Currency (points, USD, etc.)
+  string exchange_rate = 9;                  // Decimal string for exchange rate
+  string milestone_type = 10;                // signup, first_transaction, etc.
+  string milestone_value = 11;               // Decimal string for milestone value
+  
+  // Processing details
+  string reward_transaction_id = 12;         // Associated reward transaction
+  string processing_fee = 13;                // Decimal string for processing fee
+  string net_amount = 14;                    // Decimal string for net amount
+  
+  // Time tracking
+  string earned_at = 15;                     // ISO 8601 timestamp
+  string processed_at = 16;                  // ISO 8601 timestamp
+  string expires_at = 17;                    // ISO 8601 timestamp
+  
+  // Metadata
+  string description = 18;
+  map<string, string> metadata = 19;
+  string created_at = 20;                    // ISO 8601 timestamp
+  string updated_at = 21;                    // ISO 8601 timestamp
+}
+
+// Referral metrics for analytics
+message ReferralMetrics {
+  // Overall metrics
+  int64 total_referral_codes = 1;
+  int64 active_referral_codes = 2;
+  int64 total_referrals = 3;
+  int64 successful_referrals = 4;
+  int64 pending_referrals = 5;
+  string total_bonuses_paid = 6;             // Decimal string for total bonuses paid
+  string total_bonuses_pending = 7;          // Decimal string for pending bonuses
+
+  // Time period metrics
+  string period_start = 8;                   // ISO 8601 timestamp
+  string period_end = 9;                     // ISO 8601 timestamp
+  int64 period_referrals = 10;               // Referrals in period
+  int64 period_signups = 11;                 // Signups in period
+  string period_bonuses_paid = 12;           // Decimal string for bonuses paid in period
+
+  // Conversion metrics
+  string signup_conversion_rate = 13;        // Decimal string for signup conversion rate
+  string transaction_conversion_rate = 14;   // Decimal string for transaction conversion rate
+  string average_bonus_per_referral = 15;    // Decimal string for average bonus
+  string roi = 16;                          // Decimal string for return on investment
+
+  // Top performers
+  repeated TopReferrer top_referrers = 17;
+  repeated CampaignMetrics top_campaigns = 18;
+
+  // Fraud metrics
+  int64 flagged_relationships = 19;
+  int64 cancelled_relationships = 20;
+  string fraud_rate = 21;                    // Decimal string for fraud rate percentage
+
+  // Metadata
+  string generated_at = 22;                  // ISO 8601 timestamp
+  map<string, string> metadata = 23;
+}
+
+// Top referrer information
+message TopReferrer {
+  string user_id = 1;
+  string username = 2;                       // Optional display name
+  int64 total_referrals = 3;
+  int64 successful_referrals = 4;
+  string total_bonuses_earned = 5;           // Decimal string for total bonuses
+  string conversion_rate = 6;                // Decimal string for conversion rate
+}
+
+// Campaign metrics
+message CampaignMetrics {
+  string campaign_id = 1;
+  string campaign_name = 2;
+  int64 total_referrals = 3;
+  int64 successful_referrals = 4;
+  string total_bonuses_paid = 5;             // Decimal string for bonuses paid
+  string budget_utilization = 6;             // Decimal string for budget utilization percentage
+  string roi = 7;                           // Decimal string for return on investment
+}
+
+// Referral tree node
+message ReferralTreeNode {
+  string user_id = 1;
+  string username = 2;                       // Optional display name
+  int32 level = 3;                          // Referral level (1 = direct, 2 = sub, etc.)
+  int64 direct_referrals = 4;
+  int64 total_referrals = 5;                // Including sub-referrals
+  string total_bonuses_earned = 6;           // Decimal string for total bonuses
+  repeated ReferralTreeNode children = 7;    // Sub-referrals
+  string joined_at = 8;                     // ISO 8601 timestamp
+  bool is_active = 9;
+}
+
+// Request/Response messages for referral code operations
+message GenerateReferralCodeRequest {
+  string user_id = 1;
+  string campaign_id = 2;                    // Optional campaign association
+  string custom_code = 3;                    // Optional custom code
+  string description = 4;
+  int32 max_uses = 5;                        // -1 for unlimited
+  string expires_at = 6;                     // ISO 8601 timestamp
+  map<string, string> metadata = 7;
+}
+
+message GenerateReferralCodeResponse {
+  ReferralCode referral_code = 1;
+  string message = 2;
+}
+
+message GetReferralCodeRequest {
+  string code_id = 1;                        // Can be ID or actual code
+}
+
+message GetReferralCodeResponse {
+  ReferralCode referral_code = 1;
+}
+
+message ValidateReferralCodeRequest {
+  string code = 1;
+  string user_id = 2;                        // User trying to use the code
+  string campaign_id = 3;                    // Optional campaign context
+}
+
+message ValidateReferralCodeResponse {
+  bool is_valid = 1;
+  string validation_message = 2;
+  ReferralCode referral_code = 3;            // If valid
+  repeated string validation_errors = 4;     // If invalid
+}
+
+message DeactivateReferralCodeRequest {
+  string code_id = 1;
+  string reason = 2;
+}
+
+message DeactivateReferralCodeResponse {
+  ReferralCode referral_code = 1;
+  string message = 2;
+}
+
+message ListUserReferralCodesRequest {
+  string user_id = 1;
+  ReferralCodeStatus status = 2;
+  string campaign_id = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+}
+
+message ListUserReferralCodesResponse {
+  repeated ReferralCode referral_codes = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// Request/Response messages for referral relationship operations
+message CreateReferralRelationshipRequest {
+  string referrer_user_id = 1;
+  string referee_user_id = 2;
+  string referral_code = 3;
+  string campaign_id = 4;                    // Optional campaign
+  string referral_source = 5;               // web, mobile, email, etc.
+  map<string, string> metadata = 6;
+}
+
+message CreateReferralRelationshipResponse {
+  ReferralRelationship relationship = 1;
+  string message = 2;
+}
+
+message GetReferralRelationshipRequest {
+  string relationship_id = 1;
+}
+
+message GetReferralRelationshipResponse {
+  ReferralRelationship relationship = 1;
+}
+
+message ListReferralRelationshipsRequest {
+  string user_id = 1;                        // Filter by referrer or referee
+  string referrer_user_id = 2;               // Filter by referrer only
+  string referee_user_id = 3;                // Filter by referee only
+  ReferralRelationshipStatus status = 4;
+  string campaign_id = 5;
+  string start_date = 6;                     // ISO 8601 timestamp
+  string end_date = 7;                       // ISO 8601 timestamp
+  int32 page = 8;
+  int32 page_size = 9;
+}
+
+message ListReferralRelationshipsResponse {
+  repeated ReferralRelationship relationships = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetReferralTreeRequest {
+  string user_id = 1;
+  int32 max_depth = 2;                       // Maximum depth to retrieve
+  bool include_inactive = 3;
+}
+
+message GetReferralTreeResponse {
+  ReferralTreeNode root = 1;
+  int64 total_nodes = 2;
+  int32 max_depth = 3;
+}
+
+message GetReferralStatsRequest {
+  string user_id = 1;
+  string start_date = 2;                     // ISO 8601 timestamp
+  string end_date = 3;                       // ISO 8601 timestamp
+}
+
+message GetReferralStatsResponse {
+  int64 total_referrals = 1;
+  int64 successful_referrals = 2;
+  int64 pending_referrals = 3;
+  string total_bonuses_earned = 4;           // Decimal string for total bonuses
+  string total_bonuses_pending = 5;          // Decimal string for pending bonuses
+  string conversion_rate = 6;                // Decimal string for conversion rate
+  repeated CampaignMetrics campaign_stats = 7;
+}
+
+// Request/Response messages for referral campaign operations
+message CreateReferralCampaignRequest {
+  ReferralCampaign campaign = 1;
+}
+
+message CreateReferralCampaignResponse {
+  ReferralCampaign campaign = 1;
+  string message = 2;
+}
+
+message GetReferralCampaignRequest {
+  string campaign_id = 1;
+}
+
+message GetReferralCampaignResponse {
+  ReferralCampaign campaign = 1;
+}
+
+message ListReferralCampaignsRequest {
+  ReferralCampaignType type = 1;
+  ReferralCampaignStatus status = 2;
+  bool active_only = 3;
+  string start_date = 4;                     // ISO 8601 timestamp
+  string end_date = 5;                       // ISO 8601 timestamp
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message ListReferralCampaignsResponse {
+  repeated ReferralCampaign campaigns = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UpdateReferralCampaignRequest {
+  ReferralCampaign campaign = 1;
+  repeated string update_mask = 2;
+}
+
+message UpdateReferralCampaignResponse {
+  ReferralCampaign campaign = 1;
+  string message = 2;
+}
+
+message DeleteReferralCampaignRequest {
+  string campaign_id = 1;
+  string reason = 2;
+}
+
+message DeleteReferralCampaignResponse {
+  string message = 1;
+}
+
+// Request/Response messages for referral bonus operations
+message ProcessReferralBonusRequest {
+  string relationship_id = 1;
+  string milestone_type = 2;                 // signup, first_transaction, etc.
+  string milestone_value = 3;                // Decimal string for milestone value
+  bool force_processing = 4;                 // Override validation checks
+  map<string, string> metadata = 5;
+}
+
+message ProcessReferralBonusResponse {
+  repeated ReferralBonus bonuses = 1;        // Bonuses created (referrer + referee)
+  string total_bonus_amount = 2;             // Decimal string for total bonus amount
+  string message = 3;
+}
+
+message GetReferralBonusesRequest {
+  string user_id = 1;
+  string relationship_id = 2;
+  string campaign_id = 3;
+  ReferralBonusStatus status = 4;
+  ReferralBonusType type = 5;
+  string start_date = 6;                     // ISO 8601 timestamp
+  string end_date = 7;                       // ISO 8601 timestamp
+  int32 page = 8;
+  int32 page_size = 9;
+}
+
+message GetReferralBonusesResponse {
+  repeated ReferralBonus bonuses = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ListReferralBonusesRequest {
+  string campaign_id = 1;
+  ReferralBonusStatus status = 2;
+  ReferralBonusType type = 3;
+  string start_date = 4;                     // ISO 8601 timestamp
+  string end_date = 5;                       // ISO 8601 timestamp
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message ListReferralBonusesResponse {
+  repeated ReferralBonus bonuses = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message ClaimReferralBonusRequest {
+  string bonus_id = 1;
+  string user_id = 2;
+}
+
+message ClaimReferralBonusResponse {
+  ReferralBonus bonus = 1;
+  string reward_transaction_id = 2;          // Associated reward transaction
+  string message = 3;
+}
+
+// Request/Response messages for analytics and reporting
+message GetReferralMetricsRequest {
+  string start_date = 1;                     // ISO 8601 timestamp
+  string end_date = 2;                       // ISO 8601 timestamp
+  repeated string campaign_ids = 3;          // Filter by campaigns
+  repeated string user_ids = 4;              // Filter by users
+  bool include_fraud_metrics = 5;
+}
+
+message GetReferralMetricsResponse {
+  ReferralMetrics metrics = 1;
+}
+
+message GetUserReferralAnalyticsRequest {
+  string user_id = 1;
+  string start_date = 2;                     // ISO 8601 timestamp
+  string end_date = 3;                       // ISO 8601 timestamp
+  bool include_tree = 4;                     // Include referral tree
+  bool include_projections = 5;              // Include projected earnings
+}
+
+message GetUserReferralAnalyticsResponse {
+  GetReferralStatsResponse stats = 1;
+  ReferralTreeNode referral_tree = 2;        // If requested
+  repeated ReferralBonus recent_bonuses = 3;
+  string projected_monthly_earnings = 4;     // Decimal string for projected earnings
+  map<string, string> insights = 5;          // AI-generated insights
+}
+
+message GenerateReferralReportRequest {
+  string report_type = 1;                    // summary, detailed, compliance, fraud
+  string start_date = 2;                     // ISO 8601 timestamp
+  string end_date = 3;                       // ISO 8601 timestamp
+  repeated string campaign_ids = 4;          // Filter by campaigns
+  repeated string user_ids = 5;              // Filter by users
+  string format = 6;                         // json, csv, pdf
+}
+
+message GenerateReferralReportResponse {
+  string report_id = 1;
+  string download_url = 2;
+  string format = 3;
+  int64 record_count = 4;
+  string generated_at = 5;                   // ISO 8601 timestamp
+  string expires_at = 6;                     // ISO 8601 timestamp
+}
+
+message ExportReferralDataRequest {
+  string start_date = 1;                     // ISO 8601 timestamp
+  string end_date = 2;                       // ISO 8601 timestamp
+  repeated string data_types = 3;            // codes, relationships, campaigns, bonuses
+  string format = 4;                         // json, csv
+  bool include_pii = 5;                      // Requires special permissions
+}
+
+message ExportReferralDataResponse {
+  string export_id = 1;
+  string download_url = 2;
+  string format = 3;
+  int64 record_count = 4;
+  string generated_at = 5;                   // ISO 8601 timestamp
+  string expires_at = 6;                     // ISO 8601 timestamp
+}
+
+// Request/Response messages for administrative operations
+message BulkProcessBonusesRequest {
+  repeated string relationship_ids = 1;
+  string milestone_type = 2;
+  string batch_id = 3;
+  string reason = 4;
+}
+
+message BulkProcessBonusesResponse {
+  repeated ReferralBonus bonuses = 1;
+  int64 successful_bonuses = 2;
+  int64 failed_bonuses = 3;
+  repeated string error_messages = 4;
+  string batch_id = 5;
+}
+
+message FlagSuspiciousActivityRequest {
+  string relationship_id = 1;
+  repeated string fraud_flags = 2;           // List of fraud indicators
+  string reason = 3;
+  bool auto_suspend = 4;                     // Automatically suspend relationship
+}
+
+message FlagSuspiciousActivityResponse {
+  ReferralRelationship relationship = 1;
+  string message = 2;
+}
+
+message GetReferralAuditTrailRequest {
+  string user_id = 1;                        // Empty for all users
+  string relationship_id = 2;                // Filter by relationship
+  string start_date = 3;                     // ISO 8601 timestamp
+  string end_date = 4;                       // ISO 8601 timestamp
+  repeated string action_types = 5;          // create, update, bonus, flag
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message GetReferralAuditTrailResponse {
+  repeated ReferralAuditTrailEntry entries = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message RecalculateReferralMetricsRequest {
+  string start_date = 1;                     // ISO 8601 timestamp
+  string end_date = 2;                       // ISO 8601 timestamp
+  repeated string campaign_ids = 3;          // Recalculate specific campaigns
+  bool force_recalculation = 4;              // Force even if recently calculated
+}
+
+message RecalculateReferralMetricsResponse {
+  string message = 1;
+  int64 relationships_processed = 2;
+  int64 bonuses_recalculated = 3;
+  string processing_time = 4;                // Duration string
+}
+
+// Audit trail entry for referrals
+message ReferralAuditTrailEntry {
+  string id = 1;
+  string user_id = 2;
+  string relationship_id = 3;                // Associated relationship
+  string action_type = 4;                    // create, update, bonus, flag, suspend
+  string entity_type = 5;                    // referral_code, relationship, campaign, bonus
+  string entity_id = 6;
+  string old_value = 7;                      // JSON string of old state
+  string new_value = 8;                      // JSON string of new state
+  string reason = 9;
+  string performed_by = 10;                  // User ID who performed the action
+  string ip_address = 11;
+  string user_agent = 12;
+  map<string, string> metadata = 13;
+  string created_at = 14;                    // ISO 8601 timestamp
+}

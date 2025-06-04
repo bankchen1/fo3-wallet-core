@@ -1,0 +1,585 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Ledger service for double-entry bookkeeping and balance reconciliation
+service LedgerService {
+  // Core ledger operations
+  rpc CreateLedgerAccount(CreateLedgerAccountRequest) returns (CreateLedgerAccountResponse);
+  rpc GetLedgerAccount(GetLedgerAccountRequest) returns (GetLedgerAccountResponse);
+  rpc ListLedgerAccounts(ListLedgerAccountsRequest) returns (ListLedgerAccountsResponse);
+  rpc UpdateLedgerAccount(UpdateLedgerAccountRequest) returns (UpdateLedgerAccountResponse);
+  rpc CloseLedgerAccount(CloseLedgerAccountRequest) returns (CloseLedgerAccountResponse);
+  
+  // Transaction recording operations
+  rpc RecordTransaction(RecordTransactionRequest) returns (RecordTransactionResponse);
+  rpc GetTransaction(GetTransactionRequest) returns (GetTransactionResponse);
+  rpc ListTransactions(ListTransactionsRequest) returns (ListTransactionsResponse);
+  rpc ReverseTransaction(ReverseTransactionRequest) returns (ReverseTransactionResponse);
+  
+  // Journal entry operations
+  rpc CreateJournalEntry(CreateJournalEntryRequest) returns (CreateJournalEntryResponse);
+  rpc GetJournalEntry(GetJournalEntryRequest) returns (GetJournalEntryResponse);
+  rpc ListJournalEntries(ListJournalEntriesRequest) returns (ListJournalEntriesResponse);
+  rpc PostJournalEntry(PostJournalEntryRequest) returns (PostJournalEntryResponse);
+  
+  // Balance and reconciliation operations
+  rpc GetAccountBalance(GetAccountBalanceRequest) returns (GetAccountBalanceResponse);
+  rpc GetTrialBalance(GetTrialBalanceRequest) returns (GetTrialBalanceResponse);
+  rpc ReconcileAccounts(ReconcileAccountsRequest) returns (ReconcileAccountsResponse);
+  rpc GetBalanceSheet(GetBalanceSheetRequest) returns (GetBalanceSheetResponse);
+  
+  // Audit and compliance operations
+  rpc GetAuditTrail(GetAuditTrailRequest) returns (GetAuditTrailResponse);
+  rpc GenerateFinancialReport(GenerateFinancialReportRequest) returns (GenerateFinancialReportResponse);
+  rpc ValidateBookkeeping(ValidateBookkeepingRequest) returns (ValidateBookkeepingResponse);
+  rpc ExportLedgerData(ExportLedgerDataRequest) returns (ExportLedgerDataResponse);
+  
+  // Admin operations
+  rpc GetLedgerMetrics(GetLedgerMetricsRequest) returns (GetLedgerMetricsResponse);
+  rpc PerformPeriodClose(PerformPeriodCloseRequest) returns (PerformPeriodCloseResponse);
+  rpc BackupLedgerData(BackupLedgerDataRequest) returns (BackupLedgerDataResponse);
+}
+
+// Account types in the chart of accounts
+enum AccountType {
+  ACCOUNT_TYPE_UNSPECIFIED = 0;
+  ACCOUNT_TYPE_ASSET = 1;           // Assets (cash, receivables, etc.)
+  ACCOUNT_TYPE_LIABILITY = 2;       // Liabilities (payables, loans, etc.)
+  ACCOUNT_TYPE_EQUITY = 3;          // Equity (capital, retained earnings)
+  ACCOUNT_TYPE_REVENUE = 4;         // Revenue (fees, interest income)
+  ACCOUNT_TYPE_EXPENSE = 5;         // Expenses (operational costs)
+  ACCOUNT_TYPE_CONTRA_ASSET = 6;    // Contra assets (allowances, depreciation)
+  ACCOUNT_TYPE_CONTRA_LIABILITY = 7; // Contra liabilities
+  ACCOUNT_TYPE_CONTRA_EQUITY = 8;   // Contra equity
+}
+
+// Account status
+enum AccountStatus {
+  ACCOUNT_STATUS_UNSPECIFIED = 0;
+  ACCOUNT_STATUS_ACTIVE = 1;        // Active and available for transactions
+  ACCOUNT_STATUS_INACTIVE = 2;      // Inactive but not closed
+  ACCOUNT_STATUS_CLOSED = 3;        // Permanently closed
+  ACCOUNT_STATUS_SUSPENDED = 4;     // Temporarily suspended
+}
+
+// Transaction status
+enum TransactionStatus {
+  TRANSACTION_STATUS_UNSPECIFIED = 0;
+  TRANSACTION_STATUS_PENDING = 1;    // Transaction created but not posted
+  TRANSACTION_STATUS_POSTED = 2;     // Transaction posted to ledger
+  TRANSACTION_STATUS_REVERSED = 3;   // Transaction reversed
+  TRANSACTION_STATUS_FAILED = 4;     // Transaction failed validation
+}
+
+// Journal entry status
+enum JournalEntryStatus {
+  JOURNAL_ENTRY_STATUS_UNSPECIFIED = 0;
+  JOURNAL_ENTRY_STATUS_DRAFT = 1;    // Draft entry, not posted
+  JOURNAL_ENTRY_STATUS_POSTED = 2;   // Posted to ledger
+  JOURNAL_ENTRY_STATUS_REVERSED = 3; // Entry reversed
+}
+
+// Entry type (debit or credit)
+enum EntryType {
+  ENTRY_TYPE_UNSPECIFIED = 0;
+  ENTRY_TYPE_DEBIT = 1;
+  ENTRY_TYPE_CREDIT = 2;
+}
+
+// Financial report types
+enum ReportType {
+  REPORT_TYPE_UNSPECIFIED = 0;
+  REPORT_TYPE_BALANCE_SHEET = 1;     // Balance sheet
+  REPORT_TYPE_INCOME_STATEMENT = 2;  // Profit & loss statement
+  REPORT_TYPE_CASH_FLOW = 3;         // Cash flow statement
+  REPORT_TYPE_TRIAL_BALANCE = 4;     // Trial balance
+  REPORT_TYPE_GENERAL_LEDGER = 5;    // General ledger report
+}
+
+// Ledger account entity
+message LedgerAccount {
+  string id = 1;                     // Unique account identifier
+  string account_code = 2;           // Account code (e.g., "1001", "2001")
+  string account_name = 3;           // Human-readable account name
+  AccountType account_type = 4;      // Account type classification
+  AccountStatus status = 5;          // Current account status
+  string currency = 6;               // Account currency
+  string parent_account_id = 7;      // Parent account for hierarchical structure
+  string description = 8;            // Account description
+  bool is_system_account = 9;        // System-managed account
+  bool allow_manual_entries = 10;    // Allow manual journal entries
+  string current_balance = 11;       // Current account balance
+  string pending_balance = 12;       // Balance including pending transactions
+  map<string, string> metadata = 13; // Additional account metadata
+  string created_at = 14;            // Creation timestamp
+  string updated_at = 15;            // Last update timestamp
+  string closed_at = 16;             // Account closure timestamp
+}
+
+// Ledger transaction entity
+message LedgerTransaction {
+  string id = 1;                     // Unique transaction identifier
+  string reference_number = 2;       // External reference number
+  TransactionStatus status = 3;      // Transaction status
+  string transaction_type = 4;       // Transaction type (card_payment, funding, etc.)
+  string description = 5;            // Transaction description
+  string currency = 6;               // Transaction currency
+  string total_amount = 7;           // Total transaction amount
+  repeated JournalEntry entries = 8; // Journal entries for this transaction
+  string source_service = 9;         // Originating service (CardService, etc.)
+  string source_transaction_id = 10; // Original transaction ID from source
+  map<string, string> metadata = 11; // Additional transaction metadata
+  string created_at = 12;            // Creation timestamp
+  string posted_at = 13;             // Posted timestamp
+  string reversed_at = 14;           // Reversal timestamp
+  string reversal_reason = 15;       // Reason for reversal
+}
+
+// Journal entry entity
+message JournalEntry {
+  string id = 1;                     // Unique entry identifier
+  string transaction_id = 2;         // Parent transaction ID
+  string account_id = 3;             // Target account ID
+  EntryType entry_type = 4;          // Debit or credit
+  string amount = 5;                 // Entry amount
+  string currency = 6;               // Entry currency
+  string description = 7;            // Entry description
+  JournalEntryStatus status = 8;     // Entry status
+  int32 entry_sequence = 9;          // Sequence within transaction
+  map<string, string> metadata = 10; // Additional entry metadata
+  string created_at = 11;            // Creation timestamp
+  string posted_at = 12;             // Posted timestamp
+}
+
+// Account balance information
+message AccountBalance {
+  string account_id = 1;             // Account identifier
+  string account_code = 2;           // Account code
+  string account_name = 3;           // Account name
+  AccountType account_type = 4;      // Account type
+  string currency = 5;               // Balance currency
+  string current_balance = 6;        // Current posted balance
+  string pending_balance = 7;        // Balance including pending
+  string available_balance = 8;      // Available balance for transactions
+  string last_transaction_date = 9;  // Last transaction date
+  int64 transaction_count = 10;      // Total transaction count
+}
+
+// Trial balance entry
+message TrialBalanceEntry {
+  string account_id = 1;             // Account identifier
+  string account_code = 2;           // Account code
+  string account_name = 3;           // Account name
+  AccountType account_type = 4;      // Account type
+  string debit_balance = 5;          // Debit balance
+  string credit_balance = 6;         // Credit balance
+  string net_balance = 7;            // Net balance
+}
+
+// Balance sheet section
+message BalanceSheetSection {
+  string section_name = 1;           // Section name (Assets, Liabilities, etc.)
+  repeated BalanceSheetItem items = 2; // Items in this section
+  string section_total = 3;          // Total for this section
+}
+
+message BalanceSheetItem {
+  string account_id = 1;             // Account identifier
+  string account_code = 2;           // Account code
+  string account_name = 3;           // Account name
+  string balance = 4;                // Account balance
+  repeated BalanceSheetItem sub_items = 5; // Sub-accounts
+}
+
+// Financial report
+message FinancialReport {
+  string id = 1;                     // Report identifier
+  ReportType report_type = 2;        // Type of report
+  string title = 3;                  // Report title
+  string period_start = 4;           // Report period start
+  string period_end = 5;             // Report period end
+  string currency = 6;               // Report currency
+  repeated BalanceSheetSection sections = 7; // Report sections
+  map<string, string> summary = 8;   // Report summary data
+  string generated_at = 9;           // Generation timestamp
+  string generated_by = 10;          // User who generated report
+}
+
+// Audit trail entry
+message AuditTrailEntry {
+  string id = 1;                     // Audit entry identifier
+  string transaction_id = 2;         // Related transaction ID
+  string account_id = 3;             // Related account ID
+  string action = 4;                 // Action performed
+  string old_value = 5;              // Previous value
+  string new_value = 6;              // New value
+  string user_id = 7;                // User who performed action
+  string ip_address = 8;             // Source IP address
+  string user_agent = 9;             // User agent
+  map<string, string> metadata = 10; // Additional audit data
+  string timestamp = 11;             // Action timestamp
+}
+
+// Ledger metrics
+message LedgerMetrics {
+  int64 total_accounts = 1;          // Total number of accounts
+  int64 active_accounts = 2;         // Number of active accounts
+  int64 total_transactions = 3;      // Total transactions processed
+  int64 pending_transactions = 4;    // Pending transactions
+  string total_assets = 5;           // Total asset value
+  string total_liabilities = 6;      // Total liability value
+  string total_equity = 7;           // Total equity value
+  bool books_balanced = 8;           // Whether books are balanced
+  string last_reconciliation = 9;    // Last reconciliation timestamp
+  map<string, string> currency_balances = 10; // Balances by currency
+}
+
+// Request/Response messages for ledger account operations
+message CreateLedgerAccountRequest {
+  string account_code = 1;           // Account code
+  string account_name = 2;           // Account name
+  AccountType account_type = 3;      // Account type
+  string currency = 4;               // Account currency
+  string parent_account_id = 5;      // Parent account ID (optional)
+  string description = 6;            // Account description
+  bool allow_manual_entries = 7;     // Allow manual entries
+  map<string, string> metadata = 8;  // Additional metadata
+}
+
+message CreateLedgerAccountResponse {
+  LedgerAccount account = 1;         // Created account
+}
+
+message GetLedgerAccountRequest {
+  string account_id = 1;             // Account ID to retrieve
+}
+
+message GetLedgerAccountResponse {
+  LedgerAccount account = 1;         // Retrieved account
+}
+
+message ListLedgerAccountsRequest {
+  AccountType account_type = 1;      // Filter by account type (optional)
+  AccountStatus status = 2;          // Filter by status (optional)
+  string currency = 3;               // Filter by currency (optional)
+  string parent_account_id = 4;      // Filter by parent (optional)
+  bool include_balances = 5;         // Include current balances
+  int32 page = 6;                    // Page number
+  int32 page_size = 7;               // Page size
+}
+
+message ListLedgerAccountsResponse {
+  repeated LedgerAccount accounts = 1; // List of accounts
+  int32 total_count = 2;             // Total account count
+  int32 page = 3;                    // Current page
+  int32 page_size = 4;               // Page size
+}
+
+message UpdateLedgerAccountRequest {
+  string account_id = 1;             // Account ID to update
+  string account_name = 2;           // New account name (optional)
+  string description = 3;            // New description (optional)
+  bool allow_manual_entries = 4;     // Allow manual entries
+  map<string, string> metadata = 5;  // Updated metadata
+}
+
+message UpdateLedgerAccountResponse {
+  LedgerAccount account = 1;         // Updated account
+}
+
+message CloseLedgerAccountRequest {
+  string account_id = 1;             // Account ID to close
+  string reason = 2;                 // Closure reason
+  string transfer_to_account_id = 3; // Transfer balance to this account
+}
+
+message CloseLedgerAccountResponse {
+  LedgerAccount account = 1;         // Closed account
+  bool balance_transferred = 2;      // Whether balance was transferred
+  string transfer_transaction_id = 3; // Transfer transaction ID
+}
+
+// Request/Response messages for transaction operations
+message RecordTransactionRequest {
+  string reference_number = 1;       // External reference
+  string transaction_type = 2;       // Transaction type
+  string description = 3;            // Transaction description
+  string currency = 4;               // Transaction currency
+  repeated JournalEntryRequest entries = 5; // Journal entries
+  string source_service = 6;         // Source service
+  string source_transaction_id = 7;  // Source transaction ID
+  map<string, string> metadata = 8;  // Additional metadata
+  bool auto_post = 9;                // Automatically post transaction
+}
+
+message JournalEntryRequest {
+  string account_id = 1;             // Target account ID
+  EntryType entry_type = 2;          // Debit or credit
+  string amount = 3;                 // Entry amount
+  string description = 4;            // Entry description
+  map<string, string> metadata = 5;  // Entry metadata
+}
+
+message RecordTransactionResponse {
+  LedgerTransaction transaction = 1;  // Created transaction
+  bool posted = 2;                   // Whether transaction was posted
+  repeated string validation_errors = 3; // Validation errors if any
+}
+
+message GetTransactionRequest {
+  string transaction_id = 1;         // Transaction ID to retrieve
+}
+
+message GetTransactionResponse {
+  LedgerTransaction transaction = 1;  // Retrieved transaction
+}
+
+message ListTransactionsRequest {
+  string account_id = 1;             // Filter by account (optional)
+  TransactionStatus status = 2;      // Filter by status (optional)
+  string transaction_type = 3;       // Filter by type (optional)
+  string currency = 4;               // Filter by currency (optional)
+  string start_date = 5;             // Start date filter
+  string end_date = 6;               // End date filter
+  string source_service = 7;         // Filter by source service
+  int32 page = 8;                    // Page number
+  int32 page_size = 9;               // Page size
+}
+
+message ListTransactionsResponse {
+  repeated LedgerTransaction transactions = 1; // List of transactions
+  int32 total_count = 2;             // Total transaction count
+  int32 page = 3;                    // Current page
+  int32 page_size = 4;               // Page size
+}
+
+message ReverseTransactionRequest {
+  string transaction_id = 1;         // Transaction ID to reverse
+  string reason = 2;                 // Reversal reason
+  string description = 3;            // Reversal description
+}
+
+message ReverseTransactionResponse {
+  LedgerTransaction original_transaction = 1; // Original transaction
+  LedgerTransaction reversal_transaction = 2; // Reversal transaction
+  bool success = 3;                  // Reversal success
+}
+
+// Request/Response messages for journal entry operations
+message CreateJournalEntryRequest {
+  string transaction_id = 1;         // Parent transaction ID
+  repeated JournalEntryRequest entries = 2; // Journal entries
+  string description = 3;            // Entry description
+  bool auto_post = 4;                // Automatically post entries
+}
+
+message CreateJournalEntryResponse {
+  repeated JournalEntry entries = 1;  // Created entries
+  bool posted = 2;                   // Whether entries were posted
+  repeated string validation_errors = 3; // Validation errors
+}
+
+message GetJournalEntryRequest {
+  string entry_id = 1;               // Entry ID to retrieve
+}
+
+message GetJournalEntryResponse {
+  JournalEntry entry = 1;            // Retrieved entry
+}
+
+message ListJournalEntriesRequest {
+  string transaction_id = 1;         // Filter by transaction (optional)
+  string account_id = 2;             // Filter by account (optional)
+  JournalEntryStatus status = 3;     // Filter by status (optional)
+  string start_date = 4;             // Start date filter
+  string end_date = 5;               // End date filter
+  int32 page = 6;                    // Page number
+  int32 page_size = 7;               // Page size
+}
+
+message ListJournalEntriesResponse {
+  repeated JournalEntry entries = 1;  // List of entries
+  int32 total_count = 2;             // Total entry count
+  int32 page = 3;                    // Current page
+  int32 page_size = 4;               // Page size
+}
+
+message PostJournalEntryRequest {
+  string entry_id = 1;               // Entry ID to post
+  string posting_date = 2;           // Posting date (optional)
+}
+
+message PostJournalEntryResponse {
+  JournalEntry entry = 1;            // Posted entry
+  bool success = 2;                  // Posting success
+}
+
+// Request/Response messages for balance and reconciliation operations
+message GetAccountBalanceRequest {
+  string account_id = 1;             // Account ID
+  string as_of_date = 2;             // Balance as of date (optional)
+  bool include_pending = 3;          // Include pending transactions
+}
+
+message GetAccountBalanceResponse {
+  AccountBalance balance = 1;        // Account balance information
+}
+
+message GetTrialBalanceRequest {
+  string as_of_date = 1;             // Trial balance as of date
+  string currency = 2;               // Filter by currency (optional)
+  AccountType account_type = 3;      // Filter by account type (optional)
+  bool include_zero_balances = 4;    // Include accounts with zero balance
+}
+
+message GetTrialBalanceResponse {
+  repeated TrialBalanceEntry entries = 1; // Trial balance entries
+  string total_debits = 2;           // Total debit amount
+  string total_credits = 3;          // Total credit amount
+  bool balanced = 4;                 // Whether debits equal credits
+  string as_of_date = 5;             // Report date
+  string currency = 6;               // Report currency
+}
+
+message ReconcileAccountsRequest {
+  repeated string account_ids = 1;   // Accounts to reconcile
+  string reconciliation_date = 2;    // Reconciliation date
+  bool auto_correct = 3;             // Automatically correct discrepancies
+}
+
+message ReconcileAccountsResponse {
+  repeated AccountReconciliation reconciliations = 1; // Reconciliation results
+  bool all_balanced = 2;             // Whether all accounts balanced
+  repeated string discrepancies = 3; // Found discrepancies
+}
+
+message AccountReconciliation {
+  string account_id = 1;             // Account ID
+  string expected_balance = 2;       // Expected balance
+  string actual_balance = 3;         // Actual balance
+  string difference = 4;             // Difference amount
+  bool balanced = 5;                 // Whether account is balanced
+  repeated string issues = 6;        // Reconciliation issues
+}
+
+message GetBalanceSheetRequest {
+  string as_of_date = 1;             // Balance sheet date
+  string currency = 2;               // Report currency
+  bool include_sub_accounts = 3;     // Include sub-account details
+}
+
+message GetBalanceSheetResponse {
+  FinancialReport balance_sheet = 1; // Balance sheet report
+}
+
+// Request/Response messages for audit and compliance operations
+message GetAuditTrailRequest {
+  string account_id = 1;             // Filter by account (optional)
+  string transaction_id = 2;         // Filter by transaction (optional)
+  string user_id = 3;                // Filter by user (optional)
+  string action = 4;                 // Filter by action (optional)
+  string start_date = 5;             // Start date filter
+  string end_date = 6;               // End date filter
+  int32 page = 7;                    // Page number
+  int32 page_size = 8;               // Page size
+}
+
+message GetAuditTrailResponse {
+  repeated AuditTrailEntry entries = 1; // Audit trail entries
+  int32 total_count = 2;             // Total entry count
+  int32 page = 3;                    // Current page
+  int32 page_size = 4;               // Page size
+}
+
+message GenerateFinancialReportRequest {
+  ReportType report_type = 1;        // Type of report to generate
+  string period_start = 2;           // Report period start
+  string period_end = 3;             // Report period end
+  string currency = 4;               // Report currency
+  repeated string account_ids = 5;   // Specific accounts (optional)
+  bool include_sub_accounts = 6;     // Include sub-accounts
+  map<string, string> parameters = 7; // Additional report parameters
+}
+
+message GenerateFinancialReportResponse {
+  FinancialReport report = 1;        // Generated report
+  string report_url = 2;             // URL to download report (optional)
+}
+
+message ValidateBookkeepingRequest {
+  string start_date = 1;             // Validation period start
+  string end_date = 2;               // Validation period end
+  repeated string account_ids = 3;   // Specific accounts to validate
+  bool fix_issues = 4;               // Automatically fix found issues
+}
+
+message ValidateBookkeepingResponse {
+  bool is_valid = 1;                 // Whether bookkeeping is valid
+  repeated ValidationIssue issues = 2; // Found validation issues
+  int32 issues_fixed = 3;            // Number of issues fixed
+  string validation_date = 4;        // Validation timestamp
+}
+
+message ValidationIssue {
+  string issue_type = 1;             // Type of issue
+  string description = 2;            // Issue description
+  string account_id = 3;             // Related account (optional)
+  string transaction_id = 4;         // Related transaction (optional)
+  string severity = 5;               // Issue severity (low, medium, high)
+  bool fixed = 6;                    // Whether issue was fixed
+  string fix_description = 7;        // Description of fix applied
+}
+
+message ExportLedgerDataRequest {
+  string format = 1;                 // Export format (csv, json, xml)
+  string start_date = 2;             // Export period start
+  string end_date = 3;               // Export period end
+  repeated string account_ids = 4;   // Specific accounts to export
+  bool include_audit_trail = 5;      // Include audit trail data
+  bool compress = 6;                 // Compress export file
+}
+
+message ExportLedgerDataResponse {
+  string export_id = 1;              // Export job identifier
+  string download_url = 2;           // URL to download export
+  string file_size = 3;              // Export file size
+  string expires_at = 4;             // Download URL expiration
+}
+
+// Request/Response messages for admin operations
+message GetLedgerMetricsRequest {
+  string start_date = 1;             // Metrics period start (optional)
+  string end_date = 2;               // Metrics period end (optional)
+  string currency = 3;               // Filter by currency (optional)
+}
+
+message GetLedgerMetricsResponse {
+  LedgerMetrics metrics = 1;         // Ledger metrics
+}
+
+message PerformPeriodCloseRequest {
+  string period_end_date = 1;        // Period end date
+  string closing_description = 2;    // Closing description
+  bool auto_create_entries = 3;      // Auto-create closing entries
+}
+
+message PerformPeriodCloseResponse {
+  bool success = 1;                  // Period close success
+  string closing_transaction_id = 2; // Closing transaction ID
+  repeated string closing_entries = 3; // Created closing entries
+  string closed_period = 4;          // Closed period identifier
+}
+
+message BackupLedgerDataRequest {
+  string backup_type = 1;            // Backup type (full, incremental)
+  string description = 2;            // Backup description
+  bool include_audit_trail = 3;      // Include audit trail in backup
+}
+
+message BackupLedgerDataResponse {
+  string backup_id = 1;              // Backup identifier
+  string backup_location = 2;        // Backup storage location
+  string backup_size = 3;            // Backup file size
+  string created_at = 4;             // Backup creation timestamp
+}

@@ -1,0 +1,467 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// AutomatedTradingService provides advanced automated trading capabilities
+service AutomatedTradingService {
+  // Create a new trading strategy
+  rpc CreateStrategy(CreateStrategyRequest) returns (CreateStrategyResponse);
+  
+  // Start an existing trading strategy
+  rpc StartStrategy(StartStrategyRequest) returns (StartStrategyResponse);
+  
+  // Stop a running trading strategy
+  rpc StopStrategy(StopStrategyRequest) returns (StopStrategyResponse);
+  
+  // Update strategy configuration
+  rpc UpdateStrategy(UpdateStrategyRequest) returns (UpdateStrategyResponse);
+  
+  // Get strategy details
+  rpc GetStrategy(GetStrategyRequest) returns (GetStrategyResponse);
+  
+  // List user's trading strategies
+  rpc ListStrategies(ListStrategiesRequest) returns (ListStrategiesResponse);
+  
+  // Execute portfolio rebalancing
+  rpc RebalancePortfolio(RebalancePortfolioRequest) returns (RebalancePortfolioResponse);
+  
+  // Get strategy performance metrics
+  rpc GetStrategyPerformance(GetStrategyPerformanceRequest) returns (GetStrategyPerformanceResponse);
+  
+  // Get trading signals
+  rpc GetTradingSignals(GetTradingSignalsRequest) returns (GetTradingSignalsResponse);
+  
+  // Execute manual trade
+  rpc ExecuteTrade(ExecuteTradeRequest) returns (ExecuteTradeResponse);
+  
+  // Get risk assessment
+  rpc GetRiskAssessment(GetRiskAssessmentRequest) returns (GetRiskAssessmentResponse);
+}
+
+// Create strategy request
+message CreateStrategyRequest {
+  string name = 1;
+  string description = 2;
+  StrategyType strategy_type = 3;
+  StrategyConfig config = 4;
+  RiskParameters risk_parameters = 5;
+}
+
+// Create strategy response
+message CreateStrategyResponse {
+  string strategy_id = 1;
+  string status = 2;
+  string message = 3;
+}
+
+// Start strategy request
+message StartStrategyRequest {
+  string strategy_id = 1;
+}
+
+// Start strategy response
+message StartStrategyResponse {
+  bool success = 1;
+  string message = 2;
+  google.protobuf.Timestamp started_at = 3;
+}
+
+// Stop strategy request
+message StopStrategyRequest {
+  string strategy_id = 1;
+  string reason = 2;
+}
+
+// Stop strategy response
+message StopStrategyResponse {
+  bool success = 1;
+  string message = 2;
+  google.protobuf.Timestamp stopped_at = 3;
+}
+
+// Update strategy request
+message UpdateStrategyRequest {
+  string strategy_id = 1;
+  StrategyConfig config = 2;
+  RiskParameters risk_parameters = 3;
+}
+
+// Update strategy response
+message UpdateStrategyResponse {
+  bool success = 1;
+  string message = 2;
+  google.protobuf.Timestamp updated_at = 3;
+}
+
+// Get strategy request
+message GetStrategyRequest {
+  string strategy_id = 1;
+}
+
+// Get strategy response
+message GetStrategyResponse {
+  TradingStrategy strategy = 1;
+}
+
+// List strategies request
+message ListStrategiesRequest {
+  string user_id = 1;
+  StrategyStatus status_filter = 2;
+  int32 page_size = 3;
+  string page_token = 4;
+}
+
+// List strategies response
+message ListStrategiesResponse {
+  repeated TradingStrategy strategies = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Rebalance portfolio request
+message RebalancePortfolioRequest {
+  string user_id = 1;
+  repeated TargetAllocation target_allocations = 2;
+  RebalanceOptions options = 3;
+}
+
+// Rebalance portfolio response
+message RebalancePortfolioResponse {
+  bool success = 1;
+  string rebalance_id = 2;
+  repeated TradeExecution executed_trades = 3;
+  RebalanceMetrics metrics = 4;
+}
+
+// Get strategy performance request
+message GetStrategyPerformanceRequest {
+  string strategy_id = 1;
+  google.protobuf.Timestamp start_date = 2;
+  google.protobuf.Timestamp end_date = 3;
+}
+
+// Get strategy performance response
+message GetStrategyPerformanceResponse {
+  StrategyPerformance performance = 1;
+  repeated PerformanceDataPoint historical_data = 2;
+}
+
+// Get trading signals request
+message GetTradingSignalsRequest {
+  repeated string assets = 1;
+  string timeframe = 2;
+  repeated SignalType signal_types = 3;
+  double min_confidence = 4;
+}
+
+// Get trading signals response
+message GetTradingSignalsResponse {
+  repeated TradingSignal signals = 1;
+  SignalSummary summary = 2;
+  google.protobuf.Timestamp generated_at = 3;
+}
+
+// Execute trade request
+message ExecuteTradeRequest {
+  string asset = 1;
+  OrderSide side = 2;
+  OrderType order_type = 3;
+  string quantity = 4;
+  string price = 5;
+  TimeInForce time_in_force = 6;
+  string stop_price = 7;
+}
+
+// Execute trade response
+message ExecuteTradeResponse {
+  string order_id = 1;
+  OrderStatus status = 2;
+  string filled_quantity = 3;
+  string average_price = 4;
+  string commission = 5;
+  google.protobuf.Timestamp executed_at = 6;
+}
+
+// Get risk assessment request
+message GetRiskAssessmentRequest {
+  string user_id = 1;
+  string portfolio_id = 2;
+  repeated string assets = 3;
+}
+
+// Get risk assessment response
+message GetRiskAssessmentResponse {
+  RiskAssessment risk_assessment = 1;
+  repeated RiskRecommendation recommendations = 2;
+}
+
+// Trading strategy
+message TradingStrategy {
+  string strategy_id = 1;
+  string name = 2;
+  string description = 3;
+  StrategyType strategy_type = 4;
+  StrategyStatus status = 5;
+  StrategyConfig config = 6;
+  RiskParameters risk_parameters = 7;
+  StrategyPerformance performance = 8;
+  google.protobuf.Timestamp created_at = 9;
+  google.protobuf.Timestamp updated_at = 10;
+}
+
+// Strategy types
+enum StrategyType {
+  STRATEGY_TYPE_UNSPECIFIED = 0;
+  STRATEGY_TYPE_PORTFOLIO_REBALANCING = 1;
+  STRATEGY_TYPE_YIELD_FARMING = 2;
+  STRATEGY_TYPE_ARBITRAGE = 3;
+  STRATEGY_TYPE_MARKET_MAKING = 4;
+  STRATEGY_TYPE_MOMENTUM_TRADING = 5;
+  STRATEGY_TYPE_MEAN_REVERSION = 6;
+  STRATEGY_TYPE_GRID_TRADING = 7;
+  STRATEGY_TYPE_DOLLAR_COST_AVERAGING = 8;
+}
+
+// Strategy status
+enum StrategyStatus {
+  STRATEGY_STATUS_UNSPECIFIED = 0;
+  STRATEGY_STATUS_ACTIVE = 1;
+  STRATEGY_STATUS_PAUSED = 2;
+  STRATEGY_STATUS_STOPPED = 3;
+  STRATEGY_STATUS_ERROR = 4;
+  STRATEGY_STATUS_BACKTESTING = 5;
+}
+
+// Strategy configuration
+message StrategyConfig {
+  repeated string target_assets = 1;
+  map<string, double> allocation_weights = 2;
+  string rebalance_frequency = 3;
+  double rebalance_threshold = 4;
+  double max_position_size = 5;
+  double stop_loss_percentage = 6;
+  double take_profit_percentage = 7;
+  double max_slippage = 8;
+  double min_liquidity = 9;
+  map<string, string> custom_parameters = 10;
+}
+
+// Risk parameters
+message RiskParameters {
+  double max_portfolio_risk = 1;
+  double max_single_position_risk = 2;
+  double max_correlation_exposure = 3;
+  double var_limit = 4;
+  double max_leverage = 5;
+  double emergency_stop_loss = 6;
+  double risk_budget = 7;
+}
+
+// Strategy performance
+message StrategyPerformance {
+  double total_return = 1;
+  double annualized_return = 2;
+  double sharpe_ratio = 3;
+  double max_drawdown = 4;
+  double win_rate = 5;
+  double profit_factor = 6;
+  int64 total_trades = 7;
+  int64 successful_trades = 8;
+  double average_trade_duration = 9;
+  google.protobuf.Timestamp last_updated = 10;
+}
+
+// Performance data point
+message PerformanceDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double portfolio_value = 2;
+  double return_percentage = 3;
+  double drawdown = 4;
+  double volatility = 5;
+}
+
+// Target allocation
+message TargetAllocation {
+  string asset = 1;
+  double target_percentage = 2;
+  double min_percentage = 3;
+  double max_percentage = 4;
+}
+
+// Rebalance options
+message RebalanceOptions {
+  double max_slippage = 1;
+  bool allow_partial_fills = 2;
+  string execution_strategy = 3;
+  double timeout_minutes = 4;
+}
+
+// Trade execution
+message TradeExecution {
+  string trade_id = 1;
+  string asset = 2;
+  OrderSide side = 3;
+  string quantity = 4;
+  string price = 5;
+  string commission = 6;
+  google.protobuf.Timestamp executed_at = 7;
+}
+
+// Rebalance metrics
+message RebalanceMetrics {
+  int32 total_trades = 1;
+  int32 successful_trades = 2;
+  string total_cost = 3;
+  double execution_time_seconds = 4;
+  double success_rate = 5;
+  double average_slippage = 6;
+}
+
+// Trading signal
+message TradingSignal {
+  string signal_id = 1;
+  string asset = 2;
+  SignalType signal_type = 3;
+  SignalDirection direction = 4;
+  double strength = 5;
+  double confidence = 6;
+  string timeframe = 7;
+  string entry_price = 8;
+  string target_price = 9;
+  string stop_loss = 10;
+  double risk_reward_ratio = 11;
+  google.protobuf.Timestamp generated_at = 12;
+  google.protobuf.Timestamp expires_at = 13;
+}
+
+// Signal types
+enum SignalType {
+  SIGNAL_TYPE_UNSPECIFIED = 0;
+  SIGNAL_TYPE_BUY = 1;
+  SIGNAL_TYPE_SELL = 2;
+  SIGNAL_TYPE_HOLD = 3;
+  SIGNAL_TYPE_STRONG_BUY = 4;
+  SIGNAL_TYPE_STRONG_SELL = 5;
+  SIGNAL_TYPE_ARBITRAGE = 6;
+  SIGNAL_TYPE_MOMENTUM = 7;
+  SIGNAL_TYPE_REVERSAL = 8;
+}
+
+// Signal direction
+enum SignalDirection {
+  SIGNAL_DIRECTION_UNSPECIFIED = 0;
+  SIGNAL_DIRECTION_LONG = 1;
+  SIGNAL_DIRECTION_SHORT = 2;
+  SIGNAL_DIRECTION_NEUTRAL = 3;
+}
+
+// Signal summary
+message SignalSummary {
+  int32 total_signals = 1;
+  int32 bullish_signals = 2;
+  int32 bearish_signals = 3;
+  int32 neutral_signals = 4;
+  double average_confidence = 5;
+  SignalDirection consensus_direction = 6;
+}
+
+// Order side
+enum OrderSide {
+  ORDER_SIDE_UNSPECIFIED = 0;
+  ORDER_SIDE_BUY = 1;
+  ORDER_SIDE_SELL = 2;
+}
+
+// Order type
+enum OrderType {
+  ORDER_TYPE_UNSPECIFIED = 0;
+  ORDER_TYPE_MARKET = 1;
+  ORDER_TYPE_LIMIT = 2;
+  ORDER_TYPE_STOP_LOSS = 3;
+  ORDER_TYPE_TAKE_PROFIT = 4;
+  ORDER_TYPE_STOP_LOSS_LIMIT = 5;
+  ORDER_TYPE_TAKE_PROFIT_LIMIT = 6;
+}
+
+// Time in force
+enum TimeInForce {
+  TIME_IN_FORCE_UNSPECIFIED = 0;
+  TIME_IN_FORCE_GOOD_TILL_CANCELED = 1;
+  TIME_IN_FORCE_IMMEDIATE_OR_CANCEL = 2;
+  TIME_IN_FORCE_FILL_OR_KILL = 3;
+  TIME_IN_FORCE_GOOD_TILL_DATE = 4;
+}
+
+// Order status
+enum OrderStatus {
+  ORDER_STATUS_UNSPECIFIED = 0;
+  ORDER_STATUS_PENDING = 1;
+  ORDER_STATUS_PARTIALLY_FILLED = 2;
+  ORDER_STATUS_FILLED = 3;
+  ORDER_STATUS_CANCELED = 4;
+  ORDER_STATUS_REJECTED = 5;
+  ORDER_STATUS_EXPIRED = 6;
+}
+
+// Risk assessment
+message RiskAssessment {
+  string assessment_id = 1;
+  double overall_risk_score = 2;
+  RiskGrade risk_grade = 3;
+  VarAnalysis var_analysis = 4;
+  repeated RiskFactor risk_factors = 5;
+  google.protobuf.Timestamp assessed_at = 6;
+}
+
+// Risk grade
+enum RiskGrade {
+  RISK_GRADE_UNSPECIFIED = 0;
+  RISK_GRADE_LOW = 1;
+  RISK_GRADE_MEDIUM = 2;
+  RISK_GRADE_HIGH = 3;
+  RISK_GRADE_CRITICAL = 4;
+}
+
+// VaR analysis
+message VarAnalysis {
+  repeated VarResult value_at_risk = 1;
+  repeated EsResult expected_shortfall = 2;
+  double maximum_drawdown = 3;
+  double volatility_forecast = 4;
+}
+
+// VaR result
+message VarResult {
+  double confidence_level = 1;
+  int32 time_horizon_days = 2;
+  string var_amount = 3;
+  double var_percentage = 4;
+}
+
+// Expected Shortfall result
+message EsResult {
+  double confidence_level = 1;
+  int32 time_horizon_days = 2;
+  string es_amount = 3;
+  double es_percentage = 4;
+}
+
+// Risk factor
+message RiskFactor {
+  string factor_name = 1;
+  double risk_level = 2;
+  double impact_score = 3;
+  string description = 4;
+}
+
+// Risk recommendation
+message RiskRecommendation {
+  string recommendation_type = 1;
+  int32 priority = 2;
+  string description = 3;
+  double expected_risk_reduction = 4;
+  double implementation_cost = 5;
+  int32 time_to_implement = 6;
+}

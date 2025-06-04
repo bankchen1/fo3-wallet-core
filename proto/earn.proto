@@ -1,0 +1,552 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// Earn service for DeFi yield products and staking
+service EarnService {
+  // Yield Products
+  rpc GetYieldProducts(GetYieldProductsRequest) returns (GetYieldProductsResponse);
+  rpc GetYieldProduct(GetYieldProductRequest) returns (GetYieldProductResponse);
+  rpc CalculateYield(CalculateYieldRequest) returns (CalculateYieldResponse);
+  rpc GetYieldHistory(GetYieldHistoryRequest) returns (GetYieldHistoryResponse);
+  
+  // Staking Operations
+  rpc StakeTokens(StakeTokensRequest) returns (StakeTokensResponse);
+  rpc UnstakeTokens(UnstakeTokensRequest) returns (UnstakeTokensResponse);
+  rpc GetStakingPositions(GetStakingPositionsRequest) returns (GetStakingPositionsResponse);
+  rpc ClaimRewards(ClaimRewardsRequest) returns (ClaimRewardsResponse);
+  
+  // Lending Operations
+  rpc SupplyTokens(SupplyTokensRequest) returns (SupplyTokensResponse);
+  rpc WithdrawTokens(WithdrawTokensRequest) returns (WithdrawTokensResponse);
+  rpc GetLendingPositions(GetLendingPositionsRequest) returns (GetLendingPositionsResponse);
+  
+  // Vault Operations
+  rpc DepositToVault(DepositToVaultRequest) returns (DepositToVaultResponse);
+  rpc WithdrawFromVault(WithdrawFromVaultRequest) returns (WithdrawFromVaultResponse);
+  rpc GetVaultPositions(GetVaultPositionsRequest) returns (GetVaultPositionsResponse);
+  
+  // Analytics & Reporting
+  rpc GetEarnAnalytics(GetEarnAnalyticsRequest) returns (GetEarnAnalyticsResponse);
+  rpc GetPortfolioSummary(GetPortfolioSummaryRequest) returns (GetPortfolioSummaryResponse);
+  rpc GetYieldChart(GetYieldChartRequest) returns (GetYieldChartResponse);
+  
+  // Risk & Optimization
+  rpc AssessRisk(AssessRiskRequest) returns (AssessRiskResponse);
+  rpc OptimizePortfolio(OptimizePortfolioRequest) returns (OptimizePortfolioResponse);
+}
+
+// Yield product types
+enum YieldProductType {
+  YIELD_PRODUCT_TYPE_UNSPECIFIED = 0;
+  YIELD_PRODUCT_TYPE_STAKING = 1;
+  YIELD_PRODUCT_TYPE_LENDING = 2;
+  YIELD_PRODUCT_TYPE_VAULT = 3;
+  YIELD_PRODUCT_TYPE_LIQUIDITY_MINING = 4;
+  YIELD_PRODUCT_TYPE_FARMING = 5;
+}
+
+// Protocol types
+enum ProtocolType {
+  PROTOCOL_TYPE_UNSPECIFIED = 0;
+  PROTOCOL_TYPE_LIDO = 1;
+  PROTOCOL_TYPE_AAVE = 2;
+  PROTOCOL_TYPE_COMPOUND = 3;
+  PROTOCOL_TYPE_YEARN = 4;
+  PROTOCOL_TYPE_EIGENLAYER = 5;
+  PROTOCOL_TYPE_MARINADE = 6;
+  PROTOCOL_TYPE_RAYDIUM = 7;
+  PROTOCOL_TYPE_ORCA = 8;
+}
+
+// Risk levels
+enum RiskLevel {
+  RISK_LEVEL_UNSPECIFIED = 0;
+  RISK_LEVEL_LOW = 1;
+  RISK_LEVEL_MEDIUM = 2;
+  RISK_LEVEL_HIGH = 3;
+  RISK_LEVEL_CRITICAL = 4;
+}
+
+// Position status
+enum PositionStatus {
+  POSITION_STATUS_UNSPECIFIED = 0;
+  POSITION_STATUS_ACTIVE = 1;
+  POSITION_STATUS_PENDING = 2;
+  POSITION_STATUS_UNSTAKING = 3;
+  POSITION_STATUS_COMPLETED = 4;
+  POSITION_STATUS_FAILED = 5;
+}
+
+// Yield product
+message YieldProduct {
+  string product_id = 1;
+  string name = 2;
+  string description = 3;
+  YieldProductType product_type = 4;
+  ProtocolType protocol = 5;
+  KeyType chain_type = 6;
+  string chain_id = 7;
+  string token_address = 8;
+  string token_symbol = 9;
+  string current_apy = 10; // Decimal string
+  string historical_apy = 11; // Decimal string (30-day average)
+  string tvl = 12; // Total Value Locked
+  string minimum_deposit = 13;
+  string maximum_deposit = 14;
+  int64 lock_period_days = 15; // 0 for no lock
+  RiskLevel risk_level = 16;
+  bool is_active = 17;
+  repeated string features = 18;
+  map<string, string> metadata = 19;
+  int64 created_at = 20;
+  int64 updated_at = 21;
+}
+
+// Yield calculation
+message YieldCalculation {
+  string principal_amount = 1;
+  string estimated_yield = 2;
+  string total_return = 3;
+  string apy_used = 4;
+  int64 time_period_days = 5;
+  repeated YieldBreakdown breakdown = 6;
+  string fees = 7;
+  string net_yield = 8;
+  map<string, string> metadata = 9;
+}
+
+// Yield breakdown
+message YieldBreakdown {
+  string period = 1; // "daily", "weekly", "monthly", "yearly"
+  string yield_amount = 2;
+  string cumulative_yield = 3;
+  string apy_at_period = 4;
+}
+
+// Staking position
+message StakingPosition {
+  string position_id = 1;
+  string user_id = 2;
+  string product_id = 3;
+  string validator_address = 4; // For native staking
+  string staked_amount = 5;
+  string rewards_earned = 6;
+  string current_value = 7;
+  PositionStatus status = 8;
+  int64 staked_at = 9;
+  int64 unlock_at = 10; // 0 if no lock
+  string transaction_hash = 11;
+  map<string, string> metadata = 12;
+}
+
+// Lending position
+message LendingPosition {
+  string position_id = 1;
+  string user_id = 2;
+  string product_id = 3;
+  string supplied_amount = 4;
+  string interest_earned = 5;
+  string current_value = 6;
+  string supply_apy = 7;
+  PositionStatus status = 8;
+  int64 supplied_at = 9;
+  string transaction_hash = 10;
+  map<string, string> metadata = 11;
+}
+
+// Vault position
+message VaultPosition {
+  string position_id = 1;
+  string user_id = 2;
+  string product_id = 3;
+  string deposited_amount = 4;
+  string shares = 5;
+  string current_value = 6;
+  string yield_earned = 7;
+  PositionStatus status = 8;
+  int64 deposited_at = 9;
+  string transaction_hash = 10;
+  map<string, string> metadata = 11;
+}
+
+// Earn analytics
+message EarnAnalytics {
+  string user_id = 1;
+  string total_deposited = 2;
+  string total_earned = 3;
+  string current_value = 4;
+  string average_apy = 5;
+  int32 active_positions = 6;
+  repeated YieldProductType product_distribution = 7;
+  repeated ProtocolType protocol_distribution = 8;
+  map<string, string> chain_distribution = 9;
+  string best_performing_product = 10;
+  string total_fees_paid = 11;
+  int64 first_deposit_at = 12;
+  int64 last_activity_at = 13;
+}
+
+// Portfolio summary
+message PortfolioSummary {
+  string user_id = 1;
+  string total_portfolio_value = 2;
+  string total_yield_earned = 3;
+  string weighted_average_apy = 4;
+  repeated PositionSummary positions = 5;
+  RiskLevel overall_risk_level = 6;
+  string diversification_score = 7; // 0-100
+  repeated string recommendations = 8;
+  int64 last_updated_at = 9;
+}
+
+// Position summary
+message PositionSummary {
+  string position_id = 1;
+  YieldProductType product_type = 2;
+  ProtocolType protocol = 3;
+  string token_symbol = 4;
+  string amount = 5;
+  string current_value = 6;
+  string yield_earned = 7;
+  string current_apy = 8;
+  RiskLevel risk_level = 9;
+  double portfolio_percentage = 10;
+}
+
+// Yield chart data
+message YieldChartData {
+  repeated YieldDataPoint data_points = 1;
+  string total_yield = 2;
+  string period = 3; // "7d", "30d", "90d", "1y"
+  string start_date = 4;
+  string end_date = 5;
+}
+
+// Yield data point
+message YieldDataPoint {
+  int64 timestamp = 1;
+  string yield_amount = 2;
+  string cumulative_yield = 3;
+  string apy = 4;
+  string portfolio_value = 5;
+}
+
+// Risk assessment
+message RiskAssessment {
+  RiskLevel overall_risk = 1;
+  string risk_score = 2; // 0-100
+  repeated RiskFactor risk_factors = 3;
+  repeated string warnings = 4;
+  repeated string recommendations = 5;
+  string diversification_score = 6;
+  string concentration_risk = 7;
+  map<string, string> metadata = 8;
+}
+
+// Risk factor
+message RiskFactor {
+  string factor_name = 1;
+  RiskLevel risk_level = 2;
+  string description = 3;
+  string impact_score = 4; // 0-100
+  string mitigation = 5;
+}
+
+// Portfolio optimization
+message PortfolioOptimization {
+  string current_apy = 1;
+  string optimized_apy = 2;
+  string potential_improvement = 3;
+  repeated OptimizationSuggestion suggestions = 4;
+  RiskLevel target_risk_level = 5;
+  string rebalancing_cost = 6;
+  string expected_return_improvement = 7;
+}
+
+// Optimization suggestion
+message OptimizationSuggestion {
+  string action = 1; // "rebalance", "add", "remove", "increase", "decrease"
+  string product_id = 2;
+  string current_allocation = 3;
+  string suggested_allocation = 4;
+  string reason = 5;
+  string expected_impact = 6;
+  int32 priority = 7; // 1-10
+}
+
+// Get yield products request
+message GetYieldProductsRequest {
+  YieldProductType product_type = 1; // Optional filter
+  ProtocolType protocol = 2; // Optional filter
+  KeyType chain_type = 3; // Optional filter
+  string chain_id = 4; // Optional filter
+  RiskLevel max_risk_level = 5; // Optional filter
+  string min_apy = 6; // Optional filter
+  string max_apy = 7; // Optional filter
+  bool active_only = 8; // Default true
+  string sort_by = 9; // "apy", "tvl", "risk", "name"
+  bool sort_desc = 10; // Default true
+  int32 page_size = 11; // Default 20, max 100
+  string page_token = 12;
+}
+
+// Get yield products response
+message GetYieldProductsResponse {
+  repeated YieldProduct products = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Get yield product request
+message GetYieldProductRequest {
+  string product_id = 1;
+}
+
+// Get yield product response
+message GetYieldProductResponse {
+  YieldProduct product = 1;
+}
+
+// Calculate yield request
+message CalculateYieldRequest {
+  string product_id = 1;
+  string amount = 2;
+  int64 time_period_days = 3; // Default 365
+  bool include_compounding = 4; // Default true
+}
+
+// Calculate yield response
+message CalculateYieldResponse {
+  YieldCalculation calculation = 1;
+}
+
+// Get yield history request
+message GetYieldHistoryRequest {
+  string product_id = 1;
+  int64 start_date = 2; // Optional, default 30 days ago
+  int64 end_date = 3; // Optional, default now
+  string period = 4; // "daily", "weekly", "monthly"
+}
+
+// Get yield history response
+message GetYieldHistoryResponse {
+  repeated YieldDataPoint history = 1;
+  string average_apy = 2;
+  string min_apy = 3;
+  string max_apy = 4;
+}
+
+// Stake tokens request
+message StakeTokensRequest {
+  string product_id = 1;
+  string amount = 2;
+  string validator_address = 3; // Optional for native staking
+  bool auto_compound = 4; // Default false
+  map<string, string> metadata = 5;
+}
+
+// Stake tokens response
+message StakeTokensResponse {
+  StakingPosition position = 1;
+  string transaction_hash = 2;
+}
+
+// Unstake tokens request
+message UnstakeTokensRequest {
+  string position_id = 1;
+  string amount = 2; // Optional, unstake all if not provided
+  bool claim_rewards = 3; // Default true
+}
+
+// Unstake tokens response
+message UnstakeTokensResponse {
+  StakingPosition position = 1;
+  string transaction_hash = 2;
+  string rewards_claimed = 3;
+}
+
+// Get staking positions request
+message GetStakingPositionsRequest {
+  string user_id = 1; // Optional, admin can view all
+  string product_id = 2; // Optional filter
+  PositionStatus status = 3; // Optional filter
+  int32 page_size = 4; // Default 20, max 100
+  string page_token = 5;
+}
+
+// Get staking positions response
+message GetStakingPositionsResponse {
+  repeated StakingPosition positions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  string total_staked = 4;
+  string total_rewards = 5;
+}
+
+// Claim rewards request
+message ClaimRewardsRequest {
+  string position_id = 1;
+  bool restake = 2; // Default false
+}
+
+// Claim rewards response
+message ClaimRewardsResponse {
+  string rewards_claimed = 1;
+  string transaction_hash = 2;
+  StakingPosition updated_position = 3;
+}
+
+// Supply tokens request
+message SupplyTokensRequest {
+  string product_id = 1;
+  string amount = 2;
+  bool enable_as_collateral = 3; // Default false
+  map<string, string> metadata = 4;
+}
+
+// Supply tokens response
+message SupplyTokensResponse {
+  LendingPosition position = 1;
+  string transaction_hash = 2;
+}
+
+// Withdraw tokens request
+message WithdrawTokensRequest {
+  string position_id = 1;
+  string amount = 2; // Optional, withdraw all if not provided
+}
+
+// Withdraw tokens response
+message WithdrawTokensResponse {
+  LendingPosition position = 1;
+  string transaction_hash = 2;
+}
+
+// Get lending positions request
+message GetLendingPositionsRequest {
+  string user_id = 1; // Optional, admin can view all
+  string product_id = 2; // Optional filter
+  PositionStatus status = 3; // Optional filter
+  int32 page_size = 4; // Default 20, max 100
+  string page_token = 5;
+}
+
+// Get lending positions response
+message GetLendingPositionsResponse {
+  repeated LendingPosition positions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  string total_supplied = 4;
+  string total_interest = 5;
+}
+
+// Deposit to vault request
+message DepositToVaultRequest {
+  string product_id = 1;
+  string amount = 2;
+  map<string, string> metadata = 3;
+}
+
+// Deposit to vault response
+message DepositToVaultResponse {
+  VaultPosition position = 1;
+  string transaction_hash = 2;
+  string shares_received = 3;
+}
+
+// Withdraw from vault request
+message WithdrawFromVaultRequest {
+  string position_id = 1;
+  string amount = 2; // Optional, withdraw all if not provided
+  bool withdraw_by_shares = 3; // Default false (withdraw by amount)
+}
+
+// Withdraw from vault response
+message WithdrawFromVaultResponse {
+  VaultPosition position = 1;
+  string transaction_hash = 2;
+  string amount_withdrawn = 3;
+}
+
+// Get vault positions request
+message GetVaultPositionsRequest {
+  string user_id = 1; // Optional, admin can view all
+  string product_id = 2; // Optional filter
+  PositionStatus status = 3; // Optional filter
+  int32 page_size = 4; // Default 20, max 100
+  string page_token = 5;
+}
+
+// Get vault positions response
+message GetVaultPositionsResponse {
+  repeated VaultPosition positions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+  string total_deposited = 4;
+  string total_yield = 5;
+}
+
+// Get earn analytics request
+message GetEarnAnalyticsRequest {
+  string user_id = 1; // Optional, admin can view all
+  int64 start_date = 2; // Optional, default 30 days ago
+  int64 end_date = 3; // Optional, default now
+}
+
+// Get earn analytics response
+message GetEarnAnalyticsResponse {
+  EarnAnalytics analytics = 1;
+}
+
+// Get portfolio summary request
+message GetPortfolioSummaryRequest {
+  string user_id = 1; // Optional, admin can view all
+}
+
+// Get portfolio summary response
+message GetPortfolioSummaryResponse {
+  PortfolioSummary summary = 1;
+}
+
+// Get yield chart request
+message GetYieldChartRequest {
+  string user_id = 1; // Optional, admin can view all
+  string product_id = 2; // Optional, for specific product
+  string period = 3; // "7d", "30d", "90d", "1y"
+  int64 start_date = 4; // Optional
+  int64 end_date = 5; // Optional
+}
+
+// Get yield chart response
+message GetYieldChartResponse {
+  YieldChartData chart_data = 1;
+}
+
+// Assess risk request
+message AssessRiskRequest {
+  string user_id = 1;
+  repeated string product_ids = 2; // Optional, assess specific products
+  string target_allocation = 3; // Optional JSON string for what-if analysis
+}
+
+// Assess risk response
+message AssessRiskResponse {
+  RiskAssessment assessment = 1;
+}
+
+// Optimize portfolio request
+message OptimizePortfolioRequest {
+  string user_id = 1;
+  RiskLevel target_risk_level = 2; // Optional
+  string target_apy = 3; // Optional minimum target APY
+  string max_rebalancing_cost = 4; // Optional maximum cost for rebalancing
+  repeated string excluded_products = 5; // Optional products to exclude
+}
+
+// Optimize portfolio response
+message OptimizePortfolioResponse {
+  PortfolioOptimization optimization = 1;
+}

@@ -1,0 +1,542 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-load-test-config
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-load-tests
+    app.kubernetes.io/component: testing
+data:
+  load-test-config.yaml: |
+    # FO3 Wallet Core Load Testing Configuration
+    
+    # Test scenarios
+    scenarios:
+      - name: "baseline_load"
+        description: "Baseline load test with normal traffic patterns"
+        duration: "10m"
+        users: 100
+        ramp_up: "2m"
+        ramp_down: "1m"
+        
+      - name: "peak_load"
+        description: "Peak load test simulating high traffic"
+        duration: "15m"
+        users: 500
+        ramp_up: "5m"
+        ramp_down: "2m"
+        
+      - name: "stress_test"
+        description: "Stress test to find breaking point"
+        duration: "20m"
+        users: 1000
+        ramp_up: "10m"
+        ramp_down: "5m"
+        
+      - name: "spike_test"
+        description: "Spike test with sudden traffic increase"
+        duration: "5m"
+        users: 200
+        spike_users: 800
+        spike_duration: "1m"
+        
+      - name: "endurance_test"
+        description: "Long-running test for stability"
+        duration: "2h"
+        users: 200
+        ramp_up: "10m"
+        ramp_down: "10m"
+    
+    # Target endpoints
+    endpoints:
+      grpc:
+        host: "fo3-wallet-api.fo3-wallet.svc.cluster.local"
+        port: 50051
+        tls: true
+        
+      websocket:
+        host: "fo3-wallet-api.fo3-wallet.svc.cluster.local"
+        port: 8080
+        tls: true
+        
+      metrics:
+        host: "fo3-wallet-api.fo3-wallet.svc.cluster.local"
+        port: 9090
+        tls: false
+    
+    # Performance thresholds
+    thresholds:
+      response_time_p95: 200ms
+      response_time_p99: 500ms
+      error_rate: 1%
+      throughput_min: 100  # requests per second
+      
+    # Test data
+    test_data:
+      users:
+        - email: "loadtest1@fo3wallet.com"
+          password: "LoadTest123!"
+        - email: "loadtest2@fo3wallet.com"
+          password: "LoadTest123!"
+        - email: "loadtest3@fo3wallet.com"
+          password: "LoadTest123!"
+      
+      tokens:
+        - symbol: "ETH"
+          blockchain: "ethereum"
+        - symbol: "BTC"
+          blockchain: "bitcoin"
+        - symbol: "SOL"
+          blockchain: "solana"
+        - symbol: "USDC"
+          blockchain: "ethereum"
+        - symbol: "USDT"
+          blockchain: "ethereum"
+      
+      wallets:
+        - wallet_id: "wallet-load-test-1"
+          currency: "ETH"
+        - wallet_id: "wallet-load-test-2"
+          currency: "BTC"
+        - wallet_id: "wallet-load-test-3"
+          currency: "SOL"
+    
+    # Monitoring configuration
+    monitoring:
+      prometheus_url: "http://fo3-prometheus.fo3-wallet.svc.cluster.local:9090"
+      grafana_url: "http://fo3-grafana.fo3-wallet.svc.cluster.local:3000"
+      metrics_collection_interval: "5s"
+      
+    # Report configuration
+    reporting:
+      output_format: ["json", "html", "junit"]
+      include_charts: true
+      include_metrics: true
+      include_logs: true
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: fo3-load-test-baseline
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-load-tests
+    app.kubernetes.io/component: testing
+    test-type: baseline
+spec:
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fo3-load-tests
+        test-type: baseline
+    spec:
+      restartPolicy: Never
+      containers:
+      - name: k6-load-test
+        image: grafana/k6:0.46.0
+        command: ["k6", "run"]
+        args:
+          - "--config"
+          - "/config/load-test-config.yaml"
+          - "--out"
+          - "prometheus=http://fo3-prometheus.fo3-wallet.svc.cluster.local:9090"
+          - "--out"
+          - "json=/results/baseline-results.json"
+          - "/scripts/baseline-load-test.js"
+        env:
+        - name: K6_PROMETHEUS_RW_SERVER_URL
+          value: "http://fo3-prometheus.fo3-wallet.svc.cluster.local:9090/api/v1/write"
+        - name: K6_PROMETHEUS_RW_TREND_AS_NATIVE_HISTOGRAM
+          value: "true"
+        - name: TARGET_HOST
+          value: "fo3-wallet-api.fo3-wallet.svc.cluster.local"
+        - name: TARGET_PORT_GRPC
+          value: "50051"
+        - name: TARGET_PORT_WS
+          value: "8080"
+        - name: TARGET_PORT_METRICS
+          value: "9090"
+        - name: TEST_DURATION
+          value: "10m"
+        - name: VIRTUAL_USERS
+          value: "100"
+        volumeMounts:
+        - name: test-config
+          mountPath: /config
+        - name: test-scripts
+          mountPath: /scripts
+        - name: test-results
+          mountPath: /results
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+      volumes:
+      - name: test-config
+        configMap:
+          name: fo3-load-test-config
+      - name: test-scripts
+        configMap:
+          name: fo3-load-test-scripts
+      - name: test-results
+        emptyDir: {}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-load-test-scripts
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-load-tests
+    app.kubernetes.io/component: testing
+data:
+  baseline-load-test.js: |
+    import grpc from 'k6/net/grpc';
+    import ws from 'k6/ws';
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Rate, Trend, Counter } from 'k6/metrics';
+    
+    // Custom metrics
+    const grpcErrorRate = new Rate('grpc_errors');
+    const grpcDuration = new Trend('grpc_duration');
+    const wsConnections = new Counter('ws_connections');
+    const wsMessages = new Counter('ws_messages');
+    
+    // Test configuration
+    const TARGET_HOST = __ENV.TARGET_HOST || 'fo3-wallet-api.fo3-wallet.svc.cluster.local';
+    const GRPC_PORT = __ENV.TARGET_PORT_GRPC || '50051';
+    const WS_PORT = __ENV.TARGET_PORT_WS || '8080';
+    const METRICS_PORT = __ENV.TARGET_PORT_METRICS || '9090';
+    
+    export const options = {
+      scenarios: {
+        grpc_load: {
+          executor: 'ramping-vus',
+          startVUs: 0,
+          stages: [
+            { duration: '2m', target: 50 },
+            { duration: '6m', target: 100 },
+            { duration: '2m', target: 0 },
+          ],
+          exec: 'grpcTest',
+        },
+        websocket_load: {
+          executor: 'ramping-vus',
+          startVUs: 0,
+          stages: [
+            { duration: '2m', target: 20 },
+            { duration: '6m', target: 40 },
+            { duration: '2m', target: 0 },
+          ],
+          exec: 'websocketTest',
+        },
+        metrics_check: {
+          executor: 'constant-vus',
+          vus: 5,
+          duration: '10m',
+          exec: 'metricsTest',
+        },
+      },
+      thresholds: {
+        'grpc_duration': ['p(95)<200', 'p(99)<500'],
+        'grpc_errors': ['rate<0.01'],
+        'http_req_duration': ['p(95)<100'],
+        'http_req_failed': ['rate<0.01'],
+      },
+    };
+    
+    // gRPC client setup
+    const grpcClient = new grpc.Client();
+    grpcClient.load(['../proto'], 'auth.proto', 'wallet.proto', 'earn.proto', 'moonshot.proto');
+    
+    export function setup() {
+      // Connect to gRPC service
+      grpcClient.connect(`${TARGET_HOST}:${GRPC_PORT}`, {
+        plaintext: false,
+        timeout: '10s',
+      });
+      
+      return { grpcClient };
+    }
+    
+    export function grpcTest(data) {
+      const start = Date.now();
+      
+      try {
+        // Test authentication
+        const loginResponse = grpcClient.invoke('fo3.wallet.v1.AuthService/Login', {
+          email: 'loadtest1@fo3wallet.com',
+          password: 'LoadTest123!',
+        });
+        
+        check(loginResponse, {
+          'login successful': (r) => r && r.status === grpc.StatusOK,
+          'access token received': (r) => r && r.message && r.message.accessToken,
+        });
+        
+        if (loginResponse.status === grpc.StatusOK) {
+          const token = loginResponse.message.accessToken;
+          
+          // Test wallet operations
+          const balanceResponse = grpcClient.invoke('fo3.wallet.v1.WalletService/GetBalance', {
+            walletId: 'wallet-load-test-1',
+            currency: 'ETH',
+          }, {
+            metadata: { authorization: `Bearer ${token}` },
+          });
+          
+          check(balanceResponse, {
+            'balance request successful': (r) => r && r.status === grpc.StatusOK,
+          });
+          
+          // Test yield products
+          const yieldResponse = grpcClient.invoke('fo3.wallet.v1.EarnService/GetYieldProducts', {
+            category: 'DEFI',
+            minApy: 5.0,
+            page: 1,
+            pageSize: 10,
+          }, {
+            metadata: { authorization: `Bearer ${token}` },
+          });
+          
+          check(yieldResponse, {
+            'yield products request successful': (r) => r && r.status === grpc.StatusOK,
+          });
+          
+          // Test trending tokens
+          const trendingResponse = grpcClient.invoke('fo3.wallet.v1.MoonshotTradingService/GetTrendingTokens', {
+            page: 1,
+            pageSize: 20,
+            timeFrame: '24h',
+            sortBy: 'volume',
+          }, {
+            metadata: { authorization: `Bearer ${token}` },
+          });
+          
+          check(trendingResponse, {
+            'trending tokens request successful': (r) => r && r.status === grpc.StatusOK,
+          });
+        }
+        
+        grpcErrorRate.add(0);
+      } catch (error) {
+        console.error('gRPC test error:', error);
+        grpcErrorRate.add(1);
+      }
+      
+      const duration = Date.now() - start;
+      grpcDuration.add(duration);
+      
+      sleep(1);
+    }
+    
+    export function websocketTest() {
+      const wsUrl = `wss://${TARGET_HOST}:${WS_PORT}`;
+      
+      const response = ws.connect(wsUrl, {
+        headers: { 'Authorization': 'Bearer test-token' },
+      }, function (socket) {
+        wsConnections.add(1);
+        
+        socket.on('open', () => {
+          // Subscribe to real-time updates
+          socket.send(JSON.stringify({
+            type: 'subscribe',
+            events: ['price_update', 'transaction_confirmed', 'yield_update'],
+          }));
+        });
+        
+        socket.on('message', (data) => {
+          wsMessages.add(1);
+          const message = JSON.parse(data);
+          
+          check(message, {
+            'valid message format': (m) => m && m.type,
+          });
+        });
+        
+        socket.on('error', (error) => {
+          console.error('WebSocket error:', error);
+        });
+        
+        // Keep connection open for test duration
+        sleep(30);
+      });
+      
+      check(response, {
+        'websocket connection successful': (r) => r && r.status === 101,
+      });
+    }
+    
+    export function metricsTest() {
+      const metricsUrl = `http://${TARGET_HOST}:${METRICS_PORT}/metrics`;
+      
+      const response = http.get(metricsUrl);
+      
+      check(response, {
+        'metrics endpoint accessible': (r) => r.status === 200,
+        'metrics contain prometheus format': (r) => r.body.includes('# HELP'),
+        'metrics contain fo3 metrics': (r) => r.body.includes('fo3_'),
+      });
+      
+      sleep(5);
+    }
+    
+    export function teardown(data) {
+      grpcClient.close();
+    }
+  
+  stress-test.js: |
+    import grpc from 'k6/net/grpc';
+    import { check, sleep } from 'k6';
+    import { Rate, Trend } from 'k6/metrics';
+    
+    const grpcErrorRate = new Rate('grpc_errors');
+    const grpcDuration = new Trend('grpc_duration');
+    
+    export const options = {
+      scenarios: {
+        stress_test: {
+          executor: 'ramping-vus',
+          startVUs: 0,
+          stages: [
+            { duration: '5m', target: 200 },
+            { duration: '10m', target: 1000 },
+            { duration: '5m', target: 0 },
+          ],
+        },
+      },
+      thresholds: {
+        'grpc_duration': ['p(95)<500', 'p(99)<1000'],
+        'grpc_errors': ['rate<0.05'],
+      },
+    };
+    
+    const grpcClient = new grpc.Client();
+    grpcClient.load(['../proto'], 'auth.proto', 'wallet.proto');
+    
+    export function setup() {
+      grpcClient.connect(`${__ENV.TARGET_HOST}:${__ENV.TARGET_PORT_GRPC}`, {
+        plaintext: false,
+        timeout: '10s',
+      });
+    }
+    
+    export default function () {
+      const start = Date.now();
+      
+      try {
+        // High-frequency requests to test system limits
+        const responses = [];
+        
+        for (let i = 0; i < 10; i++) {
+          const response = grpcClient.invoke('fo3.wallet.v1.AuthService/Login', {
+            email: `loadtest${i % 3 + 1}@fo3wallet.com`,
+            password: 'LoadTest123!',
+          });
+          responses.push(response);
+        }
+        
+        const successCount = responses.filter(r => r.status === grpc.StatusOK).length;
+        
+        check(responses, {
+          'at least 80% requests successful': () => successCount >= 8,
+        });
+        
+        grpcErrorRate.add(successCount < 8 ? 1 : 0);
+      } catch (error) {
+        grpcErrorRate.add(1);
+      }
+      
+      const duration = Date.now() - start;
+      grpcDuration.add(duration);
+      
+      sleep(0.1); // High frequency
+    }
+    
+    export function teardown() {
+      grpcClient.close();
+    }
+  
+  endurance-test.js: |
+    import grpc from 'k6/net/grpc';
+    import { check, sleep } from 'k6';
+    import { Rate, Trend, Counter } from 'k6/metrics';
+    
+    const grpcErrorRate = new Rate('grpc_errors');
+    const grpcDuration = new Trend('grpc_duration');
+    const totalRequests = new Counter('total_requests');
+    
+    export const options = {
+      scenarios: {
+        endurance_test: {
+          executor: 'constant-vus',
+          vus: 200,
+          duration: '2h',
+        },
+      },
+      thresholds: {
+        'grpc_duration': ['p(95)<200'],
+        'grpc_errors': ['rate<0.01'],
+      },
+    };
+    
+    const grpcClient = new grpc.Client();
+    grpcClient.load(['../proto'], 'auth.proto', 'wallet.proto', 'earn.proto');
+    
+    export function setup() {
+      grpcClient.connect(`${__ENV.TARGET_HOST}:${__ENV.TARGET_PORT_GRPC}`, {
+        plaintext: false,
+        timeout: '10s',
+      });
+    }
+    
+    export default function () {
+      const start = Date.now();
+      totalRequests.add(1);
+      
+      try {
+        // Simulate realistic user behavior over long period
+        const userActions = [
+          () => grpcClient.invoke('fo3.wallet.v1.AuthService/Login', {
+            email: 'loadtest1@fo3wallet.com',
+            password: 'LoadTest123!',
+          }),
+          () => grpcClient.invoke('fo3.wallet.v1.WalletService/GetBalance', {
+            walletId: 'wallet-load-test-1',
+            currency: 'ETH',
+          }),
+          () => grpcClient.invoke('fo3.wallet.v1.EarnService/GetYieldProducts', {
+            category: 'DEFI',
+            page: 1,
+            pageSize: 10,
+          }),
+        ];
+        
+        const randomAction = userActions[Math.floor(Math.random() * userActions.length)];
+        const response = randomAction();
+        
+        check(response, {
+          'request successful': (r) => r && r.status === grpc.StatusOK,
+        });
+        
+        grpcErrorRate.add(response.status !== grpc.StatusOK ? 1 : 0);
+      } catch (error) {
+        grpcErrorRate.add(1);
+      }
+      
+      const duration = Date.now() - start;
+      grpcDuration.add(duration);
+      
+      // Vary sleep time to simulate realistic usage patterns
+      const sleepTime = Math.random() * 5 + 1; // 1-6 seconds
+      sleep(sleepTime);
+    }
+    
+    export function teardown() {
+      grpcClient.close();
+    }

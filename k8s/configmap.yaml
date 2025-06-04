@@ -1,0 +1,214 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-wallet-config
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: configuration
+data:
+  # Application Configuration
+  RUST_LOG: "info"
+  GRPC_LISTEN_ADDR: "0.0.0.0:50051"
+  WEBSOCKET_LISTEN_ADDR: "0.0.0.0:8080"
+  METRICS_LISTEN_ADDR: "0.0.0.0:9090"
+  
+  # TLS Configuration
+  ENABLE_TLS: "true"
+  TLS_CERT_PATH: "/app/certs/tls.crt"
+  TLS_KEY_PATH: "/app/certs/tls.key"
+  TLS_CA_CERT_PATH: "/app/certs/ca.crt"
+  CERT_DIR: "/app/certs"
+  
+  # Database Configuration
+  DATABASE_URL: "postgresql://fo3_user:$(POSTGRES_PASSWORD)@fo3-postgres:5432/fo3_wallet"
+  
+  # Redis Configuration
+  REDIS_URL: "redis://:$(REDIS_PASSWORD)@fo3-redis:6379"
+  
+  # Blockchain RPC Configuration
+  ETHEREUM_RPC_URL: "$(ETHEREUM_RPC_URL)"
+  SOLANA_RPC_URL: "https://api.mainnet-beta.solana.com"
+  BITCOIN_RPC_URL: "https://blockstream.info/api"
+  
+  # Observability
+  JAEGER_ENDPOINT: "http://fo3-jaeger:14268/api/traces"
+  PROMETHEUS_ENABLED: "true"
+  TRACE_SAMPLING_RATIO: "0.1"
+  
+  # Feature Flags
+  ENABLE_SOLANA: "true"
+  ENABLE_BITCOIN: "true"
+  ENABLE_ETHEREUM: "true"
+  ENABLE_METRICS: "true"
+  ENABLE_TRACING: "true"
+  
+  # Production Settings
+  DEBUG_MODE: "false"
+  ENABLE_CORS: "false"
+  ALLOW_INSECURE_CONNECTIONS: "false"
+  
+  # Rate Limiting
+  RATE_LIMIT_REQUESTS_PER_MINUTE: "100"
+  RATE_LIMIT_BURST: "20"
+  
+  # KYC Configuration
+  KYC_STORAGE_PATH: "/app/data/kyc_documents"
+  KYC_MAX_FILE_SIZE: "10485760"
+  
+  # Scaling Configuration
+  MIN_REPLICAS: "3"
+  MAX_REPLICAS: "20"
+  TARGET_CPU_UTILIZATION: "70"
+  TARGET_MEMORY_UTILIZATION: "80"
+  
+  # Health Check Configuration
+  HEALTH_CHECK_ENABLED: "true"
+  HEALTH_CHECK_INTERVAL: "30"
+  HEALTH_CHECK_TIMEOUT: "10"
+  READINESS_PROBE_DELAY: "30"
+  LIVENESS_PROBE_DELAY: "60"
+  
+  # Performance Tuning
+  GRPC_MAX_CONCURRENT_STREAMS: "1000"
+  GRPC_KEEPALIVE_TIME: "30"
+  GRPC_KEEPALIVE_TIMEOUT: "5"
+  DB_MAX_CONNECTIONS: "20"
+  DB_MIN_CONNECTIONS: "5"
+  REDIS_MAX_CONNECTIONS: "10"
+  
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-postgres-config
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-postgres
+    app.kubernetes.io/component: database
+data:
+  POSTGRES_DB: "fo3_wallet"
+  POSTGRES_USER: "fo3_user"
+  POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256"
+  # PostgreSQL Performance Tuning
+  shared_buffers: "256MB"
+  effective_cache_size: "1GB"
+  maintenance_work_mem: "64MB"
+  checkpoint_completion_target: "0.9"
+  wal_buffers: "16MB"
+  default_statistics_target: "100"
+  random_page_cost: "1.1"
+  effective_io_concurrency: "200"
+  work_mem: "4MB"
+  min_wal_size: "1GB"
+  max_wal_size: "4GB"
+  max_worker_processes: "8"
+  max_parallel_workers_per_gather: "4"
+  max_parallel_workers: "8"
+  max_parallel_maintenance_workers: "4"
+  
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-redis-config
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-redis
+    app.kubernetes.io/component: cache
+data:
+  redis.conf: |
+    # Redis Configuration for FO3 Wallet Core
+    
+    # Network
+    bind 0.0.0.0
+    port 6379
+    tcp-backlog 511
+    timeout 0
+    tcp-keepalive 300
+    
+    # General
+    daemonize no
+    supervised no
+    pidfile /var/run/redis_6379.pid
+    loglevel notice
+    logfile ""
+    databases 16
+    
+    # Snapshotting
+    save 900 1
+    save 300 10
+    save 60 10000
+    stop-writes-on-bgsave-error yes
+    rdbcompression yes
+    rdbchecksum yes
+    dbfilename dump.rdb
+    dir ./
+    
+    # Replication
+    replica-serve-stale-data yes
+    replica-read-only yes
+    repl-diskless-sync no
+    repl-diskless-sync-delay 5
+    repl-ping-replica-period 10
+    repl-timeout 60
+    repl-disable-tcp-nodelay no
+    repl-backlog-size 1mb
+    repl-backlog-ttl 3600
+    
+    # Security
+    requirepass $(REDIS_PASSWORD)
+    
+    # Memory Management
+    maxmemory 1gb
+    maxmemory-policy allkeys-lru
+    maxmemory-samples 5
+    
+    # Lazy Freeing
+    lazyfree-lazy-eviction no
+    lazyfree-lazy-expire no
+    lazyfree-lazy-server-del no
+    replica-lazy-flush no
+    
+    # Append Only Mode
+    appendonly yes
+    appendfilename "appendonly.aof"
+    appendfsync everysec
+    no-appendfsync-on-rewrite no
+    auto-aof-rewrite-percentage 100
+    auto-aof-rewrite-min-size 64mb
+    aof-load-truncated yes
+    aof-use-rdb-preamble yes
+    
+    # Lua Scripting
+    lua-time-limit 5000
+    
+    # Slow Log
+    slowlog-log-slower-than 10000
+    slowlog-max-len 128
+    
+    # Latency Monitor
+    latency-monitor-threshold 100
+    
+    # Event Notification
+    notify-keyspace-events ""
+    
+    # Advanced Config
+    hash-max-ziplist-entries 512
+    hash-max-ziplist-value 64
+    list-max-ziplist-size -2
+    list-compress-depth 0
+    set-max-intset-entries 512
+    zset-max-ziplist-entries 128
+    zset-max-ziplist-value 64
+    hll-sparse-max-bytes 3000
+    stream-node-max-bytes 4096
+    stream-node-max-entries 100
+    activerehashing yes
+    client-output-buffer-limit normal 0 0 0
+    client-output-buffer-limit replica 256mb 64mb 60
+    client-output-buffer-limit pubsub 32mb 8mb 60
+    hz 10
+    dynamic-hz yes
+    aof-rewrite-incremental-fsync yes
+    rdb-save-incremental-fsync yes

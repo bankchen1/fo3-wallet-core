@@ -89,6 +89,7 @@ uuid = { version = "1.6", features = ["v4", "serde"] }
 # WebSocket support
 axum = { version = "0.7", features = ["ws"] }
 futures-util = "0.3"
+futures = "0.3"
 tokio-stream = "0.1"
 
 # Observability and tracing
@@ -103,6 +104,10 @@ openssl = "0.10"
 
 # Time handling
 chrono = { version = "0.4", features = ["serde"] }
+
+# Database ORM and migrations
+sqlx = { version = "0.7", features = ["runtime-tokio-rustls", "postgres", "sqlite", "chrono", "uuid", "json", "migrate", "macros"] }
+sqlx-cli = "0.7"
 
 [profile.release]
 opt-level = 3

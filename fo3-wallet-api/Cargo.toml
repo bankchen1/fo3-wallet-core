@@ -89,6 +89,42 @@ async-trait = "0.1"
 # File system operations
 async-fs = "2.1"
 
+# CLI framework
+clap = { version = "4.4", features = ["derive"] }
+
+# Database ORM and migrations
+sqlx = { workspace = true }
+
+# Machine Learning and AI dependencies
+candle-core = "0.3"
+candle-nn = "0.3"
+candle-transformers = "0.3"
+ort = "1.16"
+ndarray = "0.15"
+linfa = "0.7"
+linfa-linear = "0.7"
+linfa-clustering = "0.7"
+smartcore = "0.3"
+
+# Advanced analytics and statistics
+statrs = "0.16"
+nalgebra = "0.32"
+polars = { version = "0.35", features = ["lazy", "temporal", "strings"] }
+
+# Time series analysis
+prophet = "0.1"
+ta = "0.5"
+
+# Real-time data processing
+kafka = "0.9"
+rdkafka = "0.36"
+
+# Advanced caching and storage
+rocksdb = "0.21"
+moka = "0.12"
+redis = { version = "0.24", features = ["tokio-comp", "connection-manager"] }
+deadpool-redis = "0.14"
+
 [dev-dependencies]
 # Testing utilities
 tempfile = "3.8"

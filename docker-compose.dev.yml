@@ -1,0 +1,216 @@
+# FO3 Wallet Core - Local Validation Docker Compose Configuration
+# 
+# Provides comprehensive local development and validation environment including:
+# - PostgreSQL database with initialization
+# - Redis for caching and sessions
+# - Jaeger for distributed tracing
+# - Prometheus for metrics collection
+# - Grafana for metrics visualization
+
+version: '3.8'
+
+services:
+  # PostgreSQL Database for production-like testing
+  postgres:
+    image: postgres:15-alpine
+    container_name: fo3-postgres-dev
+    environment:
+      - POSTGRES_DB=fo3_wallet_dev
+      - POSTGRES_USER=fo3_dev
+      - POSTGRES_PASSWORD=fo3_dev_password
+      - POSTGRES_INITDB_ARGS=--auth-host=scram-sha-256
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    ports:
+      - "5432:5432"
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U fo3_dev -d fo3_wallet_dev"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # Redis for caching and session management
+  redis:
+    image: redis:7-alpine
+    container_name: fo3-redis-dev
+    command: redis-server --appendonly yes --requirepass fo3_dev_redis_password
+    volumes:
+      - redis_dev_data:/data
+    ports:
+      - "6379:6379"
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+
+  # Jaeger for distributed tracing
+  jaeger:
+    image: jaegertracing/all-in-one:1.50
+    container_name: fo3-jaeger-dev
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+      - COLLECTOR_ZIPKIN_HOST_PORT=:9411
+    ports:
+      - "16686:16686"  # Jaeger UI
+      - "14268:14268"  # Jaeger collector HTTP
+      - "14250:14250"  # Jaeger collector gRPC
+      - "9411:9411"    # Zipkin collector
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+
+  # Prometheus for metrics collection
+  prometheus:
+    image: prom/prometheus:v2.47.0
+    container_name: fo3-prometheus-dev
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.console.libraries=/etc/prometheus/console_libraries'
+      - '--web.console.templates=/etc/prometheus/consoles'
+      - '--storage.tsdb.retention.time=200h'
+      - '--web.enable-lifecycle'
+    volumes:
+      - ./config/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_dev_data:/prometheus
+    ports:
+      - "9090:9090"
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+    depends_on:
+      - fo3-wallet-api
+
+  # Grafana for metrics visualization
+  grafana:
+    image: grafana/grafana:10.1.0
+    container_name: fo3-grafana-dev
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=fo3_dev_grafana_password
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana_dev_data:/var/lib/grafana
+      - ./config/grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./config/grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+  # FO3 Wallet API (development build)
+  fo3-wallet-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: fo3-wallet-api-dev
+    environment:
+      # Server configuration
+      - RUST_LOG=debug,fo3_wallet_api=trace
+      - GRPC_LISTEN_ADDR=0.0.0.0:50051
+      - WEBSOCKET_LISTEN_ADDR=0.0.0.0:8080
+      - METRICS_LISTEN_ADDR=0.0.0.0:9090
+      
+      # Database configuration
+      - DATABASE_URL=postgresql://fo3_dev:fo3_dev_password@postgres:5432/fo3_wallet_dev
+      
+      # Redis configuration
+      - REDIS_URL=redis://:fo3_dev_redis_password@redis:6379
+      
+      # Observability configuration
+      - JAEGER_ENDPOINT=http://jaeger:14268/api/traces
+      - PROMETHEUS_ENABLED=true
+      - TRACE_SAMPLING_RATIO=1.0
+      
+      # Security configuration
+      - JWT_SECRET=dev_jwt_secret_change_in_production
+      - BCRYPT_COST=4
+      
+      # Feature flags
+      - ENABLE_ETHEREUM=true
+      - ENABLE_BITCOIN=true
+      - ENABLE_SOLANA=true
+      - ENABLE_ML_FEATURES=true
+      - ENABLE_SEED_DATA=true
+      
+      # Development configuration
+      - ENABLE_TLS=false
+      - ENABLE_TEST_ENDPOINTS=true
+      - MOCK_EXTERNAL_SERVICES=true
+    volumes:
+      - ./config:/app/config:ro
+      - ./data:/app/data
+      - ./logs:/app/logs
+      - ./models:/app/models:ro
+    ports:
+      - "50051:50051"  # gRPC
+      - "8080:8080"    # WebSocket
+      - "9091:9090"    # Metrics (avoid conflict with Prometheus)
+    networks:
+      - fo3-dev-network
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      jaeger:
+        condition: service_started
+    healthcheck:
+      test: ["CMD", "grpcurl", "-plaintext", "localhost:50051", "fo3.wallet.v1.HealthService/Check"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  # Test data seeder (runs once)
+  test-data-seeder:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: development
+    container_name: fo3-test-data-seeder
+    environment:
+      - DATABASE_URL=postgresql://fo3_dev:fo3_dev_password@postgres:5432/fo3_wallet_dev
+      - REDIS_URL=redis://:fo3_dev_redis_password@redis:6379
+    volumes:
+      - ./config:/app/config:ro
+    command: ["./target/debug/fo3_cli", "database", "seed", "--config", "/app/config/development.toml"]
+    networks:
+      - fo3-dev-network
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: "no"
+
+networks:
+  fo3-dev-network:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.20.0.0/16
+
+volumes:
+  postgres_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+  prometheus_dev_data:
+    driver: local
+  grafana_dev_data:
+    driver: local

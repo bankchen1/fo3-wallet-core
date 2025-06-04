@@ -1,0 +1,52 @@
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fo3-wallet
+  labels:
+    name: fo3-wallet
+    environment: production
+    version: "5.0.0"
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/version: "5.0.0"
+    app.kubernetes.io/component: infrastructure
+    app.kubernetes.io/part-of: fo3-wallet-platform
+    app.kubernetes.io/managed-by: kubernetes
+  annotations:
+    description: "FO3 Wallet Core production namespace"
+    contact: "devops@fo3wallet.com"
+    documentation: "https://docs.fo3wallet.com/deployment"
+---
+apiVersion: v1
+kind: ResourceQuota
+metadata:
+  name: fo3-wallet-quota
+  namespace: fo3-wallet
+spec:
+  hard:
+    requests.cpu: "20"
+    requests.memory: 40Gi
+    limits.cpu: "40"
+    limits.memory: 80Gi
+    persistentvolumeclaims: "10"
+    services: "20"
+    secrets: "20"
+    configmaps: "20"
+    pods: "50"
+---
+apiVersion: v1
+kind: LimitRange
+metadata:
+  name: fo3-wallet-limits
+  namespace: fo3-wallet
+spec:
+  limits:
+  - default:
+      cpu: "1"
+      memory: "2Gi"
+    defaultRequest:
+      cpu: "100m"
+      memory: "256Mi"
+    type: Container
+  - default:
+      storage: "10Gi"
+    type: PersistentVolumeClaim

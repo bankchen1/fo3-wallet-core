@@ -1,0 +1,498 @@
+# Pod Security Policy (deprecated in K8s 1.25+, use Pod Security Standards)
+apiVersion: policy/v1beta1
+kind: PodSecurityPolicy
+metadata:
+  name: fo3-wallet-psp
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+spec:
+  privileged: false
+  allowPrivilegeEscalation: false
+  requiredDropCapabilities:
+    - ALL
+  volumes:
+    - 'configMap'
+    - 'emptyDir'
+    - 'projected'
+    - 'secret'
+    - 'downwardAPI'
+    - 'persistentVolumeClaim'
+  hostNetwork: false
+  hostIPC: false
+  hostPID: false
+  runAsUser:
+    rule: 'MustRunAsNonRoot'
+  supplementalGroups:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  fsGroup:
+    rule: 'MustRunAs'
+    ranges:
+      - min: 1
+        max: 65535
+  readOnlyRootFilesystem: true
+  seLinux:
+    rule: 'RunAsAny'
+---
+# Pod Security Standards (K8s 1.25+)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: fo3-wallet-secure
+  labels:
+    name: fo3-wallet-secure
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/audit: restricted
+    pod-security.kubernetes.io/warn: restricted
+---
+# Security Context Constraints (OpenShift)
+apiVersion: security.openshift.io/v1
+kind: SecurityContextConstraints
+metadata:
+  name: fo3-wallet-scc
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+allowHostDirVolumePlugin: false
+allowHostIPC: false
+allowHostNetwork: false
+allowHostPID: false
+allowHostPorts: false
+allowPrivilegedContainer: false
+allowedCapabilities: null
+defaultAddCapabilities: null
+requiredDropCapabilities:
+- ALL
+fsGroup:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+readOnlyRootFilesystem: true
+runAsUser:
+  type: MustRunAsNonRoot
+seLinuxContext:
+  type: MustRunAs
+supplementalGroups:
+  type: MustRunAs
+  ranges:
+  - min: 1000
+    max: 65535
+volumes:
+- configMap
+- downwardAPI
+- emptyDir
+- persistentVolumeClaim
+- projected
+- secret
+users:
+- system:serviceaccount:fo3-wallet:fo3-wallet-service-account
+---
+# OPA Gatekeeper Constraint Template
+apiVersion: templates.gatekeeper.sh/v1beta1
+kind: ConstraintTemplate
+metadata:
+  name: fo3walletrequiredsecuritycontext
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+spec:
+  crd:
+    spec:
+      names:
+        kind: FO3WalletRequiredSecurityContext
+      validation:
+        type: object
+        properties:
+          runAsNonRoot:
+            type: boolean
+          readOnlyRootFilesystem:
+            type: boolean
+          allowPrivilegeEscalation:
+            type: boolean
+  targets:
+    - target: admission.k8s.gatekeeper.sh
+      rego: |
+        package fo3walletrequiredsecuritycontext
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.runAsNonRoot
+          msg := "Container must run as non-root user"
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          not container.securityContext.readOnlyRootFilesystem
+          msg := "Container must have read-only root filesystem"
+        }
+
+        violation[{"msg": msg}] {
+          container := input.review.object.spec.containers[_]
+          container.securityContext.allowPrivilegeEscalation
+          msg := "Container must not allow privilege escalation"
+        }
+---
+# OPA Gatekeeper Constraint
+apiVersion: constraints.gatekeeper.sh/v1beta1
+kind: FO3WalletRequiredSecurityContext
+metadata:
+  name: fo3-wallet-security-context
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+spec:
+  match:
+    kinds:
+      - apiGroups: ["apps"]
+        kinds: ["Deployment", "StatefulSet", "DaemonSet"]
+    namespaces: ["fo3-wallet"]
+  parameters:
+    runAsNonRoot: true
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+---
+# Falco Security Rules
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-wallet-falco-rules
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-falco
+    app.kubernetes.io/component: security
+data:
+  fo3_wallet_rules.yaml: |
+    # FO3 Wallet Core Security Rules
+    
+    - rule: FO3 Wallet Unauthorized Process
+      desc: Detect unauthorized processes in FO3 Wallet containers
+      condition: >
+        spawned_process and
+        k8s_ns=fo3-wallet and
+        k8s_pod_label_app_kubernetes_io_name=fo3-wallet-core and
+        not proc.name in (fo3-wallet-core, grpc_health_probe)
+      output: >
+        Unauthorized process in FO3 Wallet container
+        (user=%user.name command=%proc.cmdline container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: WARNING
+      tags: [container, process, fo3-wallet]
+
+    - rule: FO3 Wallet File Access Violation
+      desc: Detect unauthorized file access in FO3 Wallet containers
+      condition: >
+        open_read and
+        k8s_ns=fo3-wallet and
+        k8s_pod_label_app_kubernetes_io_name=fo3-wallet-core and
+        not fd.name startswith /app and
+        not fd.name startswith /tmp and
+        not fd.name startswith /proc and
+        not fd.name startswith /sys and
+        not fd.name startswith /dev
+      output: >
+        Unauthorized file access in FO3 Wallet container
+        (user=%user.name file=%fd.name container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: WARNING
+      tags: [filesystem, fo3-wallet]
+
+    - rule: FO3 Wallet Network Connection Anomaly
+      desc: Detect suspicious network connections from FO3 Wallet containers
+      condition: >
+        outbound and
+        k8s_ns=fo3-wallet and
+        k8s_pod_label_app_kubernetes_io_name=fo3-wallet-core and
+        not fd.sip in (fo3-postgres, fo3-redis, fo3-jaeger) and
+        not fd.sport in (5432, 6379, 14268, 443, 80, 53)
+      output: >
+        Suspicious network connection from FO3 Wallet container
+        (user=%user.name connection=%fd.name container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: WARNING
+      tags: [network, fo3-wallet]
+
+    - rule: FO3 Wallet Privilege Escalation
+      desc: Detect privilege escalation attempts in FO3 Wallet containers
+      condition: >
+        spawned_process and
+        k8s_ns=fo3-wallet and
+        k8s_pod_label_app_kubernetes_io_name=fo3-wallet-core and
+        (proc.name in (su, sudo, setuid, setgid) or
+         proc.args contains "chmod +s" or
+         proc.args contains "chown root")
+      output: >
+        Privilege escalation attempt in FO3 Wallet container
+        (user=%user.name command=%proc.cmdline container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: CRITICAL
+      tags: [privilege_escalation, fo3-wallet]
+
+    - rule: FO3 Wallet Crypto Mining Detection
+      desc: Detect potential crypto mining in FO3 Wallet containers
+      condition: >
+        spawned_process and
+        k8s_ns=fo3-wallet and
+        (proc.name in (xmrig, cpuminer, cgminer, bfgminer, sgminer) or
+         proc.args contains "stratum+tcp" or
+         proc.args contains "mining.pool")
+      output: >
+        Potential crypto mining detected in FO3 Wallet container
+        (user=%user.name command=%proc.cmdline container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: CRITICAL
+      tags: [crypto_mining, fo3-wallet]
+
+    - rule: FO3 Wallet Secret Access
+      desc: Detect unauthorized access to secrets in FO3 Wallet namespace
+      condition: >
+        open_read and
+        k8s_ns=fo3-wallet and
+        fd.name startswith /var/run/secrets/kubernetes.io/serviceaccount and
+        not k8s_pod_label_app_kubernetes_io_name in (fo3-wallet-core, fo3-prometheus, fo3-grafana)
+      output: >
+        Unauthorized secret access in FO3 Wallet namespace
+        (user=%user.name file=%fd.name container=%container.name
+        pod=%k8s.pod.name ns=%k8s.ns.name)
+      priority: CRITICAL
+      tags: [secrets, fo3-wallet]
+---
+# Admission Controller Webhook
+apiVersion: admissionregistration.k8s.io/v1
+kind: ValidatingAdmissionWebhook
+metadata:
+  name: fo3-wallet-security-webhook
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+webhooks:
+- name: security.fo3wallet.com
+  clientConfig:
+    service:
+      name: fo3-wallet-security-webhook
+      namespace: fo3-wallet
+      path: "/validate"
+  rules:
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: ["apps"]
+    apiVersions: ["v1"]
+    resources: ["deployments", "statefulsets", "daemonsets"]
+  - operations: ["CREATE", "UPDATE"]
+    apiGroups: [""]
+    apiVersions: ["v1"]
+    resources: ["pods"]
+  namespaceSelector:
+    matchLabels:
+      name: fo3-wallet
+  admissionReviewVersions: ["v1", "v1beta1"]
+  sideEffects: None
+  failurePolicy: Fail
+---
+# Certificate for webhook
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: fo3-wallet-security-webhook-cert
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+spec:
+  secretName: fo3-wallet-security-webhook-tls
+  issuerRef:
+    name: fo3-wallet-ca-issuer
+    kind: ClusterIssuer
+  dnsNames:
+  - fo3-wallet-security-webhook.fo3-wallet.svc
+  - fo3-wallet-security-webhook.fo3-wallet.svc.cluster.local
+---
+# Cluster Issuer for internal certificates
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: fo3-wallet-ca-issuer
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+spec:
+  ca:
+    secretName: fo3-wallet-ca-secret
+---
+# Image Security Policy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-wallet-image-policy
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+data:
+  policy.json: |
+    {
+      "default": [
+        {
+          "type": "reject"
+        }
+      ],
+      "transports": {
+        "docker": {
+          "fo3wallet": [
+            {
+              "type": "signedBy",
+              "keyType": "GPGKeys",
+              "keyPath": "/etc/pki/fo3wallet-gpg-keys"
+            }
+          ],
+          "docker.io/library": [
+            {
+              "type": "signedBy",
+              "keyType": "GPGKeys",
+              "keyPath": "/etc/pki/docker-official-gpg-keys"
+            }
+          ],
+          "registry.k8s.io": [
+            {
+              "type": "signedBy",
+              "keyType": "GPGKeys",
+              "keyPath": "/etc/pki/kubernetes-gpg-keys"
+            }
+          ],
+          "quay.io": [
+            {
+              "type": "signedBy",
+              "keyType": "GPGKeys",
+              "keyPath": "/etc/pki/quay-gpg-keys"
+            }
+          ]
+        }
+      }
+    }
+---
+# Vulnerability Scanning Policy
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-wallet-vuln-policy
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+data:
+  policy.yaml: |
+    # FO3 Wallet Vulnerability Scanning Policy
+    
+    # Severity thresholds
+    severity_thresholds:
+      critical: 0    # No critical vulnerabilities allowed
+      high: 2        # Maximum 2 high severity vulnerabilities
+      medium: 10     # Maximum 10 medium severity vulnerabilities
+      low: 50        # Maximum 50 low severity vulnerabilities
+    
+    # CVE exceptions (with justification)
+    cve_exceptions:
+      - cve: "CVE-2023-XXXXX"
+        justification: "False positive - not applicable to our use case"
+        expiry: "2024-12-31"
+      
+    # Package exceptions
+    package_exceptions:
+      - package: "example-package"
+        version: "1.0.0"
+        justification: "Required for core functionality, no alternative available"
+        expiry: "2024-06-30"
+    
+    # Scanning configuration
+    scan_config:
+      frequency: "daily"
+      registries:
+        - "fo3wallet/*"
+        - "docker.io/library/*"
+      exclude_patterns:
+        - "*/test/*"
+        - "*/debug/*"
+    
+    # Notification settings
+    notifications:
+      critical:
+        - "security@fo3wallet.com"
+        - "devops@fo3wallet.com"
+      high:
+        - "security@fo3wallet.com"
+      medium:
+        - "devops@fo3wallet.com"
+---
+# Runtime Security Monitoring
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-wallet-runtime-security
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: security
+data:
+  config.yaml: |
+    # FO3 Wallet Runtime Security Configuration
+    
+    # Process monitoring
+    process_monitoring:
+      enabled: true
+      whitelist:
+        - "/app/fo3-wallet-core"
+        - "/usr/bin/grpc_health_probe"
+        - "/bin/sh"
+        - "/bin/bash"
+      blacklist:
+        - "/usr/bin/wget"
+        - "/usr/bin/curl"
+        - "/bin/nc"
+        - "/usr/bin/nmap"
+    
+    # Network monitoring
+    network_monitoring:
+      enabled: true
+      allowed_destinations:
+        - "fo3-postgres:5432"
+        - "fo3-redis:6379"
+        - "fo3-jaeger:14268"
+        - "*.amazonaws.com:443"
+        - "*.infura.io:443"
+        - "api.mainnet-beta.solana.com:443"
+      blocked_ports:
+        - 22    # SSH
+        - 23    # Telnet
+        - 135   # RPC
+        - 445   # SMB
+    
+    # File system monitoring
+    filesystem_monitoring:
+      enabled: true
+      protected_paths:
+        - "/app/certs"
+        - "/var/run/secrets"
+        - "/etc/ssl"
+      monitored_paths:
+        - "/tmp"
+        - "/var/tmp"
+        - "/app/logs"
+    
+    # Anomaly detection
+    anomaly_detection:
+      enabled: true
+      cpu_threshold: 80
+      memory_threshold: 90
+      network_threshold: 100  # MB/s
+      disk_io_threshold: 50   # MB/s
+    
+    # Incident response
+    incident_response:
+      auto_quarantine: true
+      alert_channels:
+        - "slack://security-alerts"
+        - "email://security@fo3wallet.com"
+      escalation_timeout: 300  # 5 minutes

@@ -1,0 +1,292 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fo3-postgres
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-postgres
+    app.kubernetes.io/component: database
+spec:
+  type: ClusterIP
+  ports:
+  - port: 5432
+    targetPort: 5432
+    protocol: TCP
+    name: postgres
+  selector:
+    app.kubernetes.io/name: fo3-postgres
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fo3-postgres-pvc
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-postgres
+    app.kubernetes.io/component: database
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: fast-ssd
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: fo3-postgres
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-postgres
+    app.kubernetes.io/component: database
+    app.kubernetes.io/version: "15"
+spec:
+  serviceName: fo3-postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fo3-postgres
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fo3-postgres
+        app.kubernetes.io/component: database
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9187"
+        prometheus.io/path: "/metrics"
+    spec:
+      securityContext:
+        fsGroup: 999
+        runAsUser: 999
+        runAsNonRoot: true
+      containers:
+      - name: postgres
+        image: postgres:15-alpine
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 5432
+          name: postgres
+        env:
+        - name: POSTGRES_DB
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-postgres-config
+              key: POSTGRES_DB
+        - name: POSTGRES_USER
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-postgres-config
+              key: POSTGRES_USER
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fo3-postgres-secret
+              key: POSTGRES_PASSWORD
+        - name: POSTGRES_INITDB_ARGS
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-postgres-config
+              key: POSTGRES_INITDB_ARGS
+        - name: PGDATA
+          value: /var/lib/postgresql/data/pgdata
+        volumeMounts:
+        - name: postgres-storage
+          mountPath: /var/lib/postgresql/data
+        - name: postgres-config
+          mountPath: /etc/postgresql/postgresql.conf
+          subPath: postgresql.conf
+        - name: init-scripts
+          mountPath: /docker-entrypoint-initdb.d
+        resources:
+          requests:
+            cpu: 500m
+            memory: 1Gi
+          limits:
+            cpu: 2
+            memory: 4Gi
+        livenessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 6
+        readinessProbe:
+          exec:
+            command:
+            - /bin/sh
+            - -c
+            - exec pg_isready -U "$POSTGRES_USER" -d "$POSTGRES_DB" -h 127.0.0.1 -p 5432
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+      # PostgreSQL Exporter for Prometheus
+      - name: postgres-exporter
+        image: prometheuscommunity/postgres-exporter:v0.15.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9187
+          name: metrics
+        env:
+        - name: DATA_SOURCE_NAME
+          value: "postgresql://fo3_user:$(POSTGRES_PASSWORD)@localhost:5432/fo3_wallet?sslmode=disable"
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fo3-postgres-secret
+              key: POSTGRES_PASSWORD
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 200m
+            memory: 256Mi
+      volumes:
+      - name: postgres-config
+        configMap:
+          name: fo3-postgres-config
+          items:
+          - key: postgresql.conf
+            path: postgresql.conf
+      - name: init-scripts
+        configMap:
+          name: fo3-postgres-init
+          defaultMode: 0755
+  volumeClaimTemplates:
+  - metadata:
+      name: postgres-storage
+      labels:
+        app.kubernetes.io/name: fo3-postgres
+        app.kubernetes.io/component: database
+    spec:
+      accessModes:
+      - ReadWriteOnce
+      resources:
+        requests:
+          storage: 100Gi
+      storageClassName: fast-ssd
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-postgres-init
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-postgres
+    app.kubernetes.io/component: database
+data:
+  01-init-database.sql: |
+    -- FO3 Wallet Core Database Initialization
+    
+    -- Create extensions
+    CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+    CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+    CREATE EXTENSION IF NOT EXISTS "pg_stat_statements";
+    
+    -- Create schemas
+    CREATE SCHEMA IF NOT EXISTS wallet;
+    CREATE SCHEMA IF NOT EXISTS defi;
+    CREATE SCHEMA IF NOT EXISTS kyc;
+    CREATE SCHEMA IF NOT EXISTS cards;
+    CREATE SCHEMA IF NOT EXISTS analytics;
+    CREATE SCHEMA IF NOT EXISTS moonshot;
+    CREATE SCHEMA IF NOT EXISTS market_intelligence;
+    
+    -- Grant permissions
+    GRANT USAGE ON SCHEMA wallet TO fo3_user;
+    GRANT USAGE ON SCHEMA defi TO fo3_user;
+    GRANT USAGE ON SCHEMA kyc TO fo3_user;
+    GRANT USAGE ON SCHEMA cards TO fo3_user;
+    GRANT USAGE ON SCHEMA analytics TO fo3_user;
+    GRANT USAGE ON SCHEMA moonshot TO fo3_user;
+    GRANT USAGE ON SCHEMA market_intelligence TO fo3_user;
+    
+    GRANT CREATE ON SCHEMA wallet TO fo3_user;
+    GRANT CREATE ON SCHEMA defi TO fo3_user;
+    GRANT CREATE ON SCHEMA kyc TO fo3_user;
+    GRANT CREATE ON SCHEMA cards TO fo3_user;
+    GRANT CREATE ON SCHEMA analytics TO fo3_user;
+    GRANT CREATE ON SCHEMA moonshot TO fo3_user;
+    GRANT CREATE ON SCHEMA market_intelligence TO fo3_user;
+    
+    -- Create audit table
+    CREATE TABLE IF NOT EXISTS audit_log (
+        id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+        service_name VARCHAR(100) NOT NULL,
+        action VARCHAR(100) NOT NULL,
+        description TEXT,
+        metadata JSONB,
+        user_id VARCHAR(100),
+        ip_address INET,
+        created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+    );
+    
+    CREATE INDEX IF NOT EXISTS idx_audit_log_service_action ON audit_log(service_name, action);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_created_at ON audit_log(created_at);
+    CREATE INDEX IF NOT EXISTS idx_audit_log_user_id ON audit_log(user_id);
+    
+    -- Create performance monitoring views
+    CREATE OR REPLACE VIEW performance_stats AS
+    SELECT 
+        schemaname,
+        tablename,
+        attname,
+        n_distinct,
+        correlation
+    FROM pg_stats 
+    WHERE schemaname IN ('wallet', 'defi', 'kyc', 'cards', 'analytics', 'moonshot', 'market_intelligence');
+    
+    -- Set up connection limits and timeouts
+    ALTER SYSTEM SET max_connections = 200;
+    ALTER SYSTEM SET shared_buffers = '256MB';
+    ALTER SYSTEM SET effective_cache_size = '1GB';
+    ALTER SYSTEM SET maintenance_work_mem = '64MB';
+    ALTER SYSTEM SET checkpoint_completion_target = 0.9;
+    ALTER SYSTEM SET wal_buffers = '16MB';
+    ALTER SYSTEM SET default_statistics_target = 100;
+    ALTER SYSTEM SET random_page_cost = 1.1;
+    ALTER SYSTEM SET effective_io_concurrency = 200;
+    ALTER SYSTEM SET work_mem = '4MB';
+    ALTER SYSTEM SET min_wal_size = '1GB';
+    ALTER SYSTEM SET max_wal_size = '4GB';
+    
+    SELECT pg_reload_conf();
+  
+  02-create-indexes.sql: |
+    -- Performance indexes for FO3 Wallet Core
+    
+    -- Ensure we're connected to the right database
+    \c fo3_wallet;
+    
+    -- Common performance indexes that will be needed
+    -- These will be created when tables are created by the application
+    
+    -- Audit log performance indexes (already created above)
+    -- Additional indexes will be added as tables are created
+    
+    -- Enable query performance monitoring
+    CREATE EXTENSION IF NOT EXISTS pg_stat_statements;
+    
+    -- Create monitoring user for metrics collection
+    DO $$
+    BEGIN
+        IF NOT EXISTS (SELECT FROM pg_catalog.pg_roles WHERE rolname = 'fo3_monitor') THEN
+            CREATE ROLE fo3_monitor WITH LOGIN PASSWORD 'monitor_password_change_me';
+        END IF;
+    END
+    $$;
+    
+    GRANT CONNECT ON DATABASE fo3_wallet TO fo3_monitor;
+    GRANT USAGE ON SCHEMA public TO fo3_monitor;
+    GRANT SELECT ON ALL TABLES IN SCHEMA public TO fo3_monitor;
+    GRANT SELECT ON ALL TABLES IN SCHEMA information_schema TO fo3_monitor;
+    GRANT SELECT ON ALL TABLES IN SCHEMA pg_catalog TO fo3_monitor;

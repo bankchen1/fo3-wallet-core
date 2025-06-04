@@ -1,0 +1,308 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// WalletConnect service for DApp integration and session management
+service WalletConnectService {
+  // Session Management
+  rpc CreateSession(CreateSessionRequest) returns (CreateSessionResponse);
+  rpc GetSession(GetSessionRequest) returns (GetSessionResponse);
+  rpc ListSessions(ListSessionsRequest) returns (ListSessionsResponse);
+  rpc UpdateSession(UpdateSessionRequest) returns (UpdateSessionResponse);
+  rpc DeleteSession(DeleteSessionRequest) returns (DeleteSessionResponse);
+  
+  // Connection Management
+  rpc ConnectDApp(ConnectDAppRequest) returns (ConnectDAppResponse);
+  rpc DisconnectDApp(DisconnectDAppRequest) returns (DisconnectDAppResponse);
+  rpc GetConnectedDApps(GetConnectedDAppsRequest) returns (GetConnectedDAppsResponse);
+  
+  // Request Handling
+  rpc HandleSessionRequest(HandleSessionRequestRequest) returns (HandleSessionRequestResponse);
+  rpc ApproveRequest(ApproveRequestRequest) returns (ApproveRequestResponse);
+  rpc RejectRequest(RejectRequestRequest) returns (RejectRequestResponse);
+  
+  // Security & Analytics
+  rpc GetSessionAnalytics(GetSessionAnalyticsRequest) returns (GetSessionAnalyticsResponse);
+  rpc FlagSuspiciousSession(FlagSuspiciousSessionRequest) returns (FlagSuspiciousSessionResponse);
+}
+
+// Session status
+enum SessionStatus {
+  SESSION_STATUS_UNSPECIFIED = 0;
+  SESSION_STATUS_PENDING = 1;
+  SESSION_STATUS_ACTIVE = 2;
+  SESSION_STATUS_EXPIRED = 3;
+  SESSION_STATUS_TERMINATED = 4;
+  SESSION_STATUS_SUSPENDED = 5;
+}
+
+// Request types
+enum RequestType {
+  REQUEST_TYPE_UNSPECIFIED = 0;
+  REQUEST_TYPE_SIGN_MESSAGE = 1;
+  REQUEST_TYPE_SIGN_TRANSACTION = 2;
+  REQUEST_TYPE_SEND_TRANSACTION = 3;
+  REQUEST_TYPE_SWITCH_CHAIN = 4;
+  REQUEST_TYPE_ADD_CHAIN = 5;
+  REQUEST_TYPE_WATCH_ASSET = 6;
+}
+
+// Request status
+enum RequestStatus {
+  REQUEST_STATUS_UNSPECIFIED = 0;
+  REQUEST_STATUS_PENDING = 1;
+  REQUEST_STATUS_APPROVED = 2;
+  REQUEST_STATUS_REJECTED = 3;
+  REQUEST_STATUS_EXPIRED = 4;
+}
+
+// WalletConnect session
+message WalletConnectSession {
+  string session_id = 1;
+  string user_id = 2;
+  string dapp_url = 3;
+  string dapp_name = 4;
+  string dapp_description = 5;
+  repeated string dapp_icons = 6;
+  repeated KeyType supported_chains = 7;
+  repeated string accounts = 8;
+  SessionStatus status = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 expires_at = 12;
+  string bridge_url = 13;
+  string key = 14;
+  string peer_id = 15;
+  map<string, string> metadata = 16;
+}
+
+// DApp information
+message DAppInfo {
+  string url = 1;
+  string name = 2;
+  string description = 3;
+  repeated string icons = 4;
+  string version = 5;
+  repeated KeyType supported_chains = 6;
+  map<string, string> metadata = 7;
+  int64 first_connected_at = 8;
+  int64 last_connected_at = 9;
+  int32 connection_count = 10;
+  bool is_trusted = 11;
+  bool is_flagged = 12;
+}
+
+// Session request
+message SessionRequest {
+  string request_id = 1;
+  string session_id = 2;
+  string user_id = 3;
+  RequestType request_type = 4;
+  RequestStatus status = 5;
+  string method = 6;
+  string params = 7; // JSON string
+  string result = 8; // JSON string
+  string error_message = 9;
+  int64 created_at = 10;
+  int64 updated_at = 11;
+  int64 expires_at = 12;
+  KeyType chain_type = 13;
+  string chain_id = 14;
+  map<string, string> metadata = 15;
+}
+
+// Session analytics
+message SessionAnalytics {
+  string user_id = 1;
+  int32 total_sessions = 2;
+  int32 active_sessions = 3;
+  int32 total_requests = 4;
+  int32 approved_requests = 5;
+  int32 rejected_requests = 6;
+  repeated DAppInfo top_dapps = 7;
+  repeated KeyType most_used_chains = 8;
+  map<string, int32> request_type_counts = 9;
+  double average_session_duration = 10;
+  int64 last_activity_at = 11;
+}
+
+// Create session request
+message CreateSessionRequest {
+  string dapp_url = 1;
+  string dapp_name = 2;
+  string dapp_description = 3;
+  repeated string dapp_icons = 4;
+  repeated KeyType supported_chains = 5;
+  string bridge_url = 6;
+  map<string, string> metadata = 7;
+  int64 expires_in_seconds = 8; // Default 24 hours
+}
+
+// Create session response
+message CreateSessionResponse {
+  WalletConnectSession session = 1;
+  string connection_uri = 2;
+}
+
+// Get session request
+message GetSessionRequest {
+  string session_id = 1;
+}
+
+// Get session response
+message GetSessionResponse {
+  WalletConnectSession session = 1;
+}
+
+// List sessions request
+message ListSessionsRequest {
+  string user_id = 1; // Optional, admin can view all
+  SessionStatus status = 2; // Optional filter
+  string dapp_url = 3; // Optional filter
+  KeyType chain_type = 4; // Optional filter
+  int64 created_after = 5; // Optional filter
+  int64 created_before = 6; // Optional filter
+  int32 page_size = 7; // Default 20, max 100
+  string page_token = 8;
+}
+
+// List sessions response
+message ListSessionsResponse {
+  repeated WalletConnectSession sessions = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Update session request
+message UpdateSessionRequest {
+  string session_id = 1;
+  SessionStatus status = 2; // Optional
+  repeated string accounts = 3; // Optional
+  repeated KeyType supported_chains = 4; // Optional
+  int64 expires_at = 5; // Optional
+  map<string, string> metadata = 6; // Optional
+}
+
+// Update session response
+message UpdateSessionResponse {
+  WalletConnectSession session = 1;
+}
+
+// Delete session request
+message DeleteSessionRequest {
+  string session_id = 1;
+  string reason = 2; // Optional reason for deletion
+}
+
+// Delete session response
+message DeleteSessionResponse {
+  bool success = 1;
+}
+
+// Connect DApp request
+message ConnectDAppRequest {
+  string session_id = 1;
+  repeated string accounts = 2;
+  repeated KeyType chains = 3;
+}
+
+// Connect DApp response
+message ConnectDAppResponse {
+  WalletConnectSession session = 1;
+}
+
+// Disconnect DApp request
+message DisconnectDAppRequest {
+  string session_id = 1;
+  string reason = 2; // Optional reason
+}
+
+// Disconnect DApp response
+message DisconnectDAppResponse {
+  bool success = 1;
+}
+
+// Get connected DApps request
+message GetConnectedDAppsRequest {
+  string user_id = 1; // Optional, admin can view all
+  bool active_only = 2; // Default true
+  int32 page_size = 3; // Default 20, max 100
+  string page_token = 4;
+}
+
+// Get connected DApps response
+message GetConnectedDAppsResponse {
+  repeated DAppInfo dapps = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Handle session request request
+message HandleSessionRequestRequest {
+  string session_id = 1;
+  RequestType request_type = 2;
+  string method = 3;
+  string params = 4; // JSON string
+  KeyType chain_type = 5;
+  string chain_id = 6;
+  int64 expires_in_seconds = 7; // Default 5 minutes
+  map<string, string> metadata = 8;
+}
+
+// Handle session request response
+message HandleSessionRequestResponse {
+  SessionRequest request = 1;
+}
+
+// Approve request request
+message ApproveRequestRequest {
+  string request_id = 1;
+  string result = 2; // JSON string result
+  map<string, string> metadata = 3;
+}
+
+// Approve request response
+message ApproveRequestResponse {
+  SessionRequest request = 1;
+}
+
+// Reject request request
+message RejectRequestRequest {
+  string request_id = 1;
+  string error_message = 2;
+  string error_code = 3; // Optional error code
+  map<string, string> metadata = 4;
+}
+
+// Reject request response
+message RejectRequestResponse {
+  SessionRequest request = 1;
+}
+
+// Get session analytics request
+message GetSessionAnalyticsRequest {
+  string user_id = 1; // Optional, admin can view all
+  int64 start_date = 2; // Optional, default 30 days ago
+  int64 end_date = 3; // Optional, default now
+}
+
+// Get session analytics response
+message GetSessionAnalyticsResponse {
+  SessionAnalytics analytics = 1;
+}
+
+// Flag suspicious session request
+message FlagSuspiciousSessionRequest {
+  string session_id = 1;
+  string reason = 2;
+  string evidence = 3; // JSON string with evidence
+  bool auto_suspend = 4; // Default false
+}
+
+// Flag suspicious session response
+message FlagSuspiciousSessionResponse {
+  bool success = 1;
+  string investigation_id = 2;
+}

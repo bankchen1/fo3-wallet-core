@@ -1,0 +1,383 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fo3-wallet-api
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: api
+  annotations:
+    service.beta.kubernetes.io/aws-load-balancer-type: nlb
+    service.beta.kubernetes.io/aws-load-balancer-backend-protocol: tcp
+    service.beta.kubernetes.io/aws-load-balancer-cross-zone-load-balancing-enabled: "true"
+spec:
+  type: LoadBalancer
+  ports:
+  - port: 50051
+    targetPort: 50051
+    protocol: TCP
+    name: grpc
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: websocket
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: fo3-wallet-core
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fo3-wallet-api-internal
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: api
+spec:
+  type: ClusterIP
+  ports:
+  - port: 50051
+    targetPort: 50051
+    protocol: TCP
+    name: grpc
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: websocket
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: metrics
+  selector:
+    app.kubernetes.io/name: fo3-wallet-core
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fo3-wallet-kyc-pvc
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: storage
+spec:
+  accessModes:
+  - ReadWriteMany
+  resources:
+    requests:
+      storage: 100Gi
+  storageClassName: efs-storage
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fo3-wallet-core
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: api
+    app.kubernetes.io/version: "5.0.0"
+spec:
+  replicas: 3
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fo3-wallet-core
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fo3-wallet-core
+        app.kubernetes.io/component: api
+        app.kubernetes.io/version: "5.0.0"
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: "9090"
+        prometheus.io/path: "/metrics"
+        config.linkerd.io/proxy-cpu-request: "0.2"
+        config.linkerd.io/proxy-memory-request: "64Mi"
+        config.linkerd.io/proxy-cpu-limit: "1"
+        config.linkerd.io/proxy-memory-limit: "256Mi"
+    spec:
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        fsGroup: 1000
+      serviceAccountName: fo3-wallet-service-account
+      containers:
+      - name: fo3-wallet-core
+        image: fo3wallet/fo3-wallet-core:5.0.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 50051
+          name: grpc
+          protocol: TCP
+        - containerPort: 8080
+          name: websocket
+          protocol: TCP
+        - containerPort: 9090
+          name: metrics
+          protocol: TCP
+        env:
+        # Configuration from ConfigMap
+        - name: RUST_LOG
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: RUST_LOG
+        - name: GRPC_LISTEN_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: GRPC_LISTEN_ADDR
+        - name: WEBSOCKET_LISTEN_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: WEBSOCKET_LISTEN_ADDR
+        - name: METRICS_LISTEN_ADDR
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: METRICS_LISTEN_ADDR
+        - name: ENABLE_TLS
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: ENABLE_TLS
+        - name: TLS_CERT_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: TLS_CERT_PATH
+        - name: TLS_KEY_PATH
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: TLS_KEY_PATH
+        - name: DATABASE_URL
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: DATABASE_URL
+        - name: REDIS_URL
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: REDIS_URL
+        - name: JAEGER_ENDPOINT
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: JAEGER_ENDPOINT
+        - name: PROMETHEUS_ENABLED
+          valueFrom:
+            configMapKeyRef:
+              name: fo3-wallet-config
+              key: PROMETHEUS_ENABLED
+        # Secrets
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: JWT_SECRET
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: ENCRYPTION_KEY
+        - name: KYC_ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: KYC_ENCRYPTION_KEY
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: POSTGRES_PASSWORD
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: REDIS_PASSWORD
+        - name: ETHEREUM_RPC_URL
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: ETHEREUM_RPC_URL
+        - name: ETHEREUM_API_KEY
+          valueFrom:
+            secretKeyRef:
+              name: fo3-wallet-secrets
+              key: ETHEREUM_API_KEY
+        # Pod information
+        - name: POD_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.name
+        - name: POD_NAMESPACE
+          valueFrom:
+            fieldRef:
+              fieldPath: metadata.namespace
+        - name: POD_IP
+          valueFrom:
+            fieldRef:
+              fieldPath: status.podIP
+        - name: NODE_NAME
+          valueFrom:
+            fieldRef:
+              fieldPath: spec.nodeName
+        volumeMounts:
+        - name: tls-certs
+          mountPath: /app/certs
+          readOnly: true
+        - name: kyc-storage
+          mountPath: /app/data/kyc_documents
+        - name: logs
+          mountPath: /app/logs
+        - name: tmp
+          mountPath: /tmp
+        resources:
+          requests:
+            cpu: 1
+            memory: 2Gi
+          limits:
+            cpu: 4
+            memory: 8Gi
+        livenessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50051
+            - -tls
+            - -tls-no-verify
+          initialDelaySeconds: 60
+          periodSeconds: 30
+          timeoutSeconds: 10
+          successThreshold: 1
+          failureThreshold: 3
+        readinessProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50051
+            - -tls
+            - -tls-no-verify
+          initialDelaySeconds: 30
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 3
+        startupProbe:
+          exec:
+            command:
+            - grpc_health_probe
+            - -addr=localhost:50051
+            - -tls
+            - -tls-no-verify
+          initialDelaySeconds: 10
+          periodSeconds: 10
+          timeoutSeconds: 5
+          successThreshold: 1
+          failureThreshold: 30
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          runAsNonRoot: true
+          runAsUser: 1000
+          capabilities:
+            drop:
+            - ALL
+      volumes:
+      - name: tls-certs
+        secret:
+          secretName: fo3-wallet-tls
+          defaultMode: 0400
+      - name: kyc-storage
+        persistentVolumeClaim:
+          claimName: fo3-wallet-kyc-pvc
+      - name: logs
+        emptyDir: {}
+      - name: tmp
+        emptyDir: {}
+      affinity:
+        podAntiAffinity:
+          preferredDuringSchedulingIgnoredDuringExecution:
+          - weight: 100
+            podAffinityTerm:
+              labelSelector:
+                matchExpressions:
+                - key: app.kubernetes.io/name
+                  operator: In
+                  values:
+                  - fo3-wallet-core
+              topologyKey: kubernetes.io/hostname
+      tolerations:
+      - key: "fo3-wallet"
+        operator: "Equal"
+        value: "true"
+        effect: "NoSchedule"
+      nodeSelector:
+        node-type: "compute"
+      terminationGracePeriodSeconds: 60
+---
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: fo3-wallet-core-hpa
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-wallet-core
+    app.kubernetes.io/component: autoscaling
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: fo3-wallet-core
+  minReplicas: 3
+  maxReplicas: 20
+  metrics:
+  - type: Resource
+    resource:
+      name: cpu
+      target:
+        type: Utilization
+        averageUtilization: 70
+  - type: Resource
+    resource:
+      name: memory
+      target:
+        type: Utilization
+        averageUtilization: 80
+  - type: Pods
+    pods:
+      metric:
+        name: grpc_requests_per_second
+      target:
+        type: AverageValue
+        averageValue: "100"
+  behavior:
+    scaleUp:
+      stabilizationWindowSeconds: 60
+      policies:
+      - type: Percent
+        value: 100
+        periodSeconds: 15
+      - type: Pods
+        value: 2
+        periodSeconds: 60
+    scaleDown:
+      stabilizationWindowSeconds: 300
+      policies:
+      - type: Percent
+        value: 10
+        periodSeconds: 60
+      - type: Pods
+        value: 1
+        periodSeconds: 60

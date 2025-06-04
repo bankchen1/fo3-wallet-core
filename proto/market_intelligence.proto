@@ -1,0 +1,508 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// MarketIntelligenceService provides advanced analytics and real-time market intelligence
+service MarketIntelligenceService {
+  // Get real-time market data with advanced analytics
+  rpc GetRealTimeMarketData(GetRealTimeMarketDataRequest) returns (GetRealTimeMarketDataResponse);
+  
+  // Get advanced sentiment analysis with ML-powered insights
+  rpc GetAdvancedSentimentAnalysis(GetAdvancedSentimentAnalysisRequest) returns (GetAdvancedSentimentAnalysisResponse);
+  
+  // Get predictive analytics for yield optimization
+  rpc GetYieldOptimizationPredictions(GetYieldOptimizationPredictionsRequest) returns (GetYieldOptimizationPredictionsResponse);
+  
+  // Detect cross-chain arbitrage opportunities
+  rpc DetectArbitrageOpportunities(DetectArbitrageOpportunitiesRequest) returns (DetectArbitrageOpportunitiesResponse);
+  
+  // Get market trend analysis with AI insights
+  rpc GetMarketTrendAnalysis(GetMarketTrendAnalysisRequest) returns (GetMarketTrendAnalysisResponse);
+  
+  // Get portfolio risk assessment with advanced metrics
+  rpc GetAdvancedRiskAssessment(GetAdvancedRiskAssessmentRequest) returns (GetAdvancedRiskAssessmentResponse);
+  
+  // Get liquidity analysis across multiple DEXs
+  rpc GetLiquidityAnalysis(GetLiquidityAnalysisRequest) returns (GetLiquidityAnalysisResponse);
+  
+  // Get whale activity monitoring and alerts
+  rpc GetWhaleActivityMonitoring(GetWhaleActivityMonitoringRequest) returns (GetWhaleActivityMonitoringResponse);
+  
+  // Get DeFi protocol health monitoring
+  rpc GetProtocolHealthMonitoring(GetProtocolHealthMonitoringRequest) returns (GetProtocolHealthMonitoringResponse);
+  
+  // Get market manipulation detection
+  rpc DetectMarketManipulation(DetectMarketManipulationRequest) returns (DetectMarketManipulationResponse);
+}
+
+// Real-time market data request
+message GetRealTimeMarketDataRequest {
+  repeated string symbols = 1;
+  repeated string blockchains = 2;
+  string data_granularity = 3; // "1s", "5s", "1m", "5m"
+  bool include_orderbook = 4;
+  bool include_trades = 5;
+  bool include_liquidity = 6;
+}
+
+// Real-time market data response
+message GetRealTimeMarketDataResponse {
+  repeated MarketDataPoint data_points = 1;
+  google.protobuf.Timestamp last_updated = 2;
+  int64 total_data_points = 3;
+  MarketSummary market_summary = 4;
+}
+
+// Market data point with comprehensive information
+message MarketDataPoint {
+  string symbol = 1;
+  string blockchain = 2;
+  string price = 3;
+  string volume_24h = 4;
+  string market_cap = 5;
+  string price_change_24h = 6;
+  string price_change_percentage_24h = 7;
+  string liquidity = 8;
+  string volatility = 9;
+  OrderBookData orderbook = 10;
+  repeated TradeData recent_trades = 11;
+  TechnicalIndicators technical_indicators = 12;
+  google.protobuf.Timestamp timestamp = 13;
+}
+
+// Order book data
+message OrderBookData {
+  repeated OrderBookLevel bids = 1;
+  repeated OrderBookLevel asks = 2;
+  string spread = 3;
+  string mid_price = 4;
+}
+
+// Order book level
+message OrderBookLevel {
+  string price = 1;
+  string quantity = 2;
+  int32 order_count = 3;
+}
+
+// Trade data
+message TradeData {
+  string price = 1;
+  string quantity = 2;
+  string side = 3; // "buy" or "sell"
+  google.protobuf.Timestamp timestamp = 4;
+  string trade_id = 5;
+}
+
+// Technical indicators
+message TechnicalIndicators {
+  string rsi = 1;
+  string macd = 2;
+  string macd_signal = 3;
+  string bollinger_upper = 4;
+  string bollinger_lower = 5;
+  string sma_20 = 6;
+  string ema_20 = 7;
+  string volume_sma = 8;
+  string momentum = 9;
+  string stochastic_k = 10;
+  string stochastic_d = 11;
+}
+
+// Market summary
+message MarketSummary {
+  string total_market_cap = 1;
+  string total_volume_24h = 2;
+  string btc_dominance = 3;
+  string eth_dominance = 4;
+  int32 active_cryptocurrencies = 5;
+  string fear_greed_index = 6;
+  MarketTrend overall_trend = 7;
+}
+
+// Market trend enumeration
+enum MarketTrend {
+  MARKET_TREND_UNSPECIFIED = 0;
+  MARKET_TREND_BULLISH = 1;
+  MARKET_TREND_BEARISH = 2;
+  MARKET_TREND_SIDEWAYS = 3;
+  MARKET_TREND_VOLATILE = 4;
+}
+
+// Advanced sentiment analysis request
+message GetAdvancedSentimentAnalysisRequest {
+  repeated string symbols = 1;
+  string time_frame = 2;
+  bool include_social_media = 3;
+  bool include_news_analysis = 4;
+  bool include_whale_sentiment = 5;
+  bool include_developer_activity = 6;
+}
+
+// Advanced sentiment analysis response
+message GetAdvancedSentimentAnalysisResponse {
+  repeated TokenSentimentAnalysis token_sentiments = 1;
+  MarketSentimentOverview market_overview = 2;
+  repeated SentimentAlert alerts = 3;
+}
+
+// Token sentiment analysis with ML insights
+message TokenSentimentAnalysis {
+  string symbol = 1;
+  MLSentimentScore ml_sentiment = 2;
+  SocialMediaSentiment social_sentiment = 3;
+  NewsSentiment news_sentiment = 4;
+  WhaleSentiment whale_sentiment = 5;
+  DeveloperSentiment developer_sentiment = 6;
+  SentimentTrend sentiment_trend = 7;
+  double confidence_score = 8;
+}
+
+// ML-powered sentiment score
+message MLSentimentScore {
+  double overall_score = 1; // -1 to 1
+  double bullish_probability = 2;
+  double bearish_probability = 3;
+  double neutral_probability = 4;
+  string model_version = 5;
+  double model_confidence = 6;
+}
+
+// Social media sentiment
+message SocialMediaSentiment {
+  double twitter_sentiment = 1;
+  double reddit_sentiment = 2;
+  double telegram_sentiment = 3;
+  double discord_sentiment = 4;
+  int64 total_mentions = 5;
+  double engagement_rate = 6;
+  repeated string trending_hashtags = 7;
+}
+
+// News sentiment analysis
+message NewsSentiment {
+  double overall_sentiment = 1;
+  int64 positive_articles = 2;
+  int64 negative_articles = 3;
+  int64 neutral_articles = 4;
+  repeated NewsSource top_sources = 5;
+  repeated string key_topics = 6;
+}
+
+// News source
+message NewsSource {
+  string source_name = 1;
+  double sentiment_score = 2;
+  int32 article_count = 3;
+  double credibility_score = 4;
+}
+
+// Whale sentiment analysis
+message WhaleSentiment {
+  double accumulation_score = 1;
+  double distribution_score = 2;
+  int64 large_transactions_24h = 3;
+  string net_flow = 4;
+  repeated WhaleTransaction recent_whale_activity = 5;
+}
+
+// Whale transaction
+message WhaleTransaction {
+  string transaction_hash = 1;
+  string amount = 2;
+  string from_address = 3;
+  string to_address = 4;
+  string transaction_type = 5; // "accumulation", "distribution", "exchange"
+  google.protobuf.Timestamp timestamp = 6;
+}
+
+// Developer sentiment
+message DeveloperSentiment {
+  double github_activity_score = 1;
+  int32 commits_last_30d = 2;
+  int32 active_developers = 3;
+  double code_quality_score = 4;
+  int32 open_issues = 5;
+  int32 closed_issues_last_30d = 6;
+}
+
+// Sentiment trend
+message SentimentTrend {
+  string trend_direction = 1; // "improving", "declining", "stable"
+  double trend_strength = 2;
+  double momentum = 3;
+  repeated SentimentDataPoint historical_data = 4;
+}
+
+// Sentiment data point
+message SentimentDataPoint {
+  google.protobuf.Timestamp timestamp = 1;
+  double sentiment_score = 2;
+  double confidence = 3;
+}
+
+// Market sentiment overview
+message MarketSentimentOverview {
+  double overall_market_sentiment = 1;
+  string dominant_emotion = 2; // "fear", "greed", "neutral", "euphoria"
+  double fear_greed_index = 3;
+  MarketPhase current_phase = 4;
+  repeated string trending_narratives = 5;
+}
+
+// Market phase enumeration
+enum MarketPhase {
+  MARKET_PHASE_UNSPECIFIED = 0;
+  MARKET_PHASE_ACCUMULATION = 1;
+  MARKET_PHASE_MARKUP = 2;
+  MARKET_PHASE_DISTRIBUTION = 3;
+  MARKET_PHASE_MARKDOWN = 4;
+}
+
+// Sentiment alert
+message SentimentAlert {
+  string alert_type = 1; // "sentiment_spike", "whale_activity", "news_impact"
+  string symbol = 2;
+  string message = 3;
+  AlertSeverity severity = 4;
+  google.protobuf.Timestamp triggered_at = 5;
+  repeated string supporting_data = 6;
+}
+
+// Alert severity enumeration
+enum AlertSeverity {
+  ALERT_SEVERITY_UNSPECIFIED = 0;
+  ALERT_SEVERITY_LOW = 1;
+  ALERT_SEVERITY_MEDIUM = 2;
+  ALERT_SEVERITY_HIGH = 3;
+  ALERT_SEVERITY_CRITICAL = 4;
+}
+
+// Yield optimization predictions request
+message GetYieldOptimizationPredictionsRequest {
+  string user_id = 1;
+  repeated string current_positions = 2;
+  string risk_tolerance = 3; // "conservative", "moderate", "aggressive"
+  string time_horizon = 4; // "1w", "1m", "3m", "6m", "1y"
+  string target_apy = 5;
+}
+
+// Yield optimization predictions response
+message GetYieldOptimizationPredictionsResponse {
+  repeated YieldOptimizationSuggestion suggestions = 1;
+  PortfolioOptimizationAnalysis current_analysis = 2;
+  repeated RiskScenario risk_scenarios = 3;
+  YieldForecast yield_forecast = 4;
+}
+
+// Yield optimization suggestion
+message YieldOptimizationSuggestion {
+  string suggestion_id = 1;
+  string action_type = 2; // "rebalance", "migrate", "add_position", "reduce_position"
+  string protocol_name = 3;
+  string asset = 4;
+  string suggested_amount = 5;
+  string expected_apy = 6;
+  string risk_level = 7;
+  double confidence_score = 8;
+  string reasoning = 9;
+  repeated string benefits = 10;
+  repeated string risks = 11;
+}
+
+// Portfolio optimization analysis
+message PortfolioOptimizationAnalysis {
+  double current_apy = 1;
+  double optimized_apy = 2;
+  double improvement_potential = 3;
+  string risk_score = 4;
+  double diversification_score = 5;
+  repeated string optimization_opportunities = 6;
+}
+
+// Risk scenario
+message RiskScenario {
+  string scenario_name = 1;
+  double probability = 2;
+  string impact_description = 3;
+  string potential_loss = 4;
+  string mitigation_strategy = 5;
+}
+
+// Yield forecast
+message YieldForecast {
+  repeated YieldPrediction predictions = 1;
+  double confidence_interval = 2;
+  string methodology = 3;
+}
+
+// Yield prediction
+message YieldPrediction {
+  string time_period = 1;
+  string predicted_apy = 2;
+  string lower_bound = 3;
+  string upper_bound = 4;
+  double confidence = 5;
+}
+
+// Arbitrage opportunities request
+message DetectArbitrageOpportunitiesRequest {
+  repeated string symbols = 1;
+  repeated string source_chains = 2;
+  repeated string target_chains = 3;
+  string min_profit_threshold = 4;
+  string max_gas_cost = 5;
+  bool include_dex_arbitrage = 6;
+  bool include_cross_chain = 7;
+}
+
+// Arbitrage opportunities response
+message DetectArbitrageOpportunitiesResponse {
+  repeated ArbitrageOpportunity opportunities = 1;
+  ArbitrageMarketOverview market_overview = 2;
+  repeated ArbitrageAlert alerts = 3;
+}
+
+// Arbitrage opportunity
+message ArbitrageOpportunity {
+  string opportunity_id = 1;
+  string symbol = 2;
+  string source_exchange = 3;
+  string target_exchange = 4;
+  string source_chain = 5;
+  string target_chain = 6;
+  string source_price = 7;
+  string target_price = 8;
+  string profit_amount = 9;
+  string profit_percentage = 10;
+  string estimated_gas_cost = 11;
+  string net_profit = 12;
+  double execution_complexity = 13;
+  string time_sensitivity = 14; // "immediate", "short", "medium"
+  repeated string execution_steps = 15;
+  repeated string risks = 16;
+}
+
+// Arbitrage market overview
+message ArbitrageMarketOverview {
+  int32 total_opportunities = 1;
+  string total_potential_profit = 2;
+  string average_profit_percentage = 3;
+  repeated string most_profitable_pairs = 4;
+  repeated string most_active_chains = 5;
+}
+
+// Arbitrage alert
+message ArbitrageAlert {
+  string alert_id = 1;
+  string symbol = 2;
+  string profit_percentage = 3;
+  string estimated_duration = 4;
+  AlertSeverity urgency = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+// Market trend analysis request
+message GetMarketTrendAnalysisRequest {
+  repeated string symbols = 1;
+  string analysis_depth = 2; // "basic", "advanced", "comprehensive"
+  string time_frame = 3;
+  bool include_macro_factors = 4;
+  bool include_correlation_analysis = 5;
+}
+
+// Market trend analysis response
+message GetMarketTrendAnalysisResponse {
+  repeated TokenTrendAnalysis token_trends = 1;
+  MarketCorrelationAnalysis correlation_analysis = 2;
+  MacroFactorAnalysis macro_analysis = 3;
+  TrendPredictions trend_predictions = 4;
+}
+
+// Token trend analysis
+message TokenTrendAnalysis {
+  string symbol = 1;
+  TrendDirection primary_trend = 2;
+  TrendDirection secondary_trend = 3;
+  double trend_strength = 4;
+  repeated TrendIndicator trend_indicators = 5;
+  repeated SupportResistanceLevel key_levels = 6;
+  string trend_summary = 7;
+}
+
+// Trend direction enumeration
+enum TrendDirection {
+  TREND_DIRECTION_UNSPECIFIED = 0;
+  TREND_DIRECTION_BULLISH = 1;
+  TREND_DIRECTION_BEARISH = 2;
+  TREND_DIRECTION_SIDEWAYS = 3;
+}
+
+// Trend indicator
+message TrendIndicator {
+  string indicator_name = 1;
+  string signal = 2; // "bullish", "bearish", "neutral"
+  double strength = 3;
+  string timeframe = 4;
+}
+
+// Support/Resistance level
+message SupportResistanceLevel {
+  string level_type = 1; // "support", "resistance"
+  string price = 2;
+  double strength = 3;
+  int32 touches = 4;
+  google.protobuf.Timestamp last_test = 5;
+}
+
+// Market correlation analysis
+message MarketCorrelationAnalysis {
+  repeated CorrelationPair correlation_pairs = 1;
+  repeated string highly_correlated_assets = 2;
+  repeated string uncorrelated_assets = 3;
+  string market_regime = 4; // "risk_on", "risk_off", "mixed"
+}
+
+// Correlation pair
+message CorrelationPair {
+  string asset1 = 1;
+  string asset2 = 2;
+  double correlation_coefficient = 3;
+  string correlation_strength = 4; // "weak", "moderate", "strong"
+  string time_frame = 5;
+}
+
+// Macro factor analysis
+message MacroFactorAnalysis {
+  repeated MacroFactor factors = 1;
+  double overall_market_impact = 2;
+  string dominant_narrative = 3;
+}
+
+// Macro factor
+message MacroFactor {
+  string factor_name = 1;
+  string impact_level = 2; // "low", "medium", "high"
+  string direction = 3; // "positive", "negative", "neutral"
+  string description = 4;
+  double confidence = 5;
+}
+
+// Trend predictions
+message TrendPredictions {
+  repeated TrendPrediction predictions = 1;
+  double overall_confidence = 2;
+  string methodology = 3;
+}
+
+// Trend prediction
+message TrendPrediction {
+  string symbol = 1;
+  string time_horizon = 2;
+  TrendDirection predicted_direction = 3;
+  double probability = 4;
+  string target_price_range = 5;
+  repeated string key_catalysts = 6;
+}

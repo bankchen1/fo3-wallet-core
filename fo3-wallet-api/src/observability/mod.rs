@@ -5,14 +5,24 @@ pub mod metrics;
 pub mod health;
 
 use std::sync::Arc;
+use std::collections::HashMap;
 use opentelemetry::{global, KeyValue};
 use opentelemetry_sdk::{
     trace::{self, Sampler},
     Resource,
 };
 use opentelemetry_jaeger::JaegerTraceExporter;
-use prometheus::{Registry, Counter, Histogram, Gauge, Opts, HistogramOpts};
+use prometheus::{Registry, Counter, Histogram, Gauge, Opts, HistogramOpts, CounterVec, HistogramVec, GaugeVec, TextEncoder, Encoder};
 use anyhow::Result;
+use axum::{
+    extract::State,
+    http::StatusCode,
+    response::Json,
+    routing::get,
+    Router,
+};
+use serde_json::{json, Value};
+use tracing::{info, warn, error};
 
 /// Observability configuration
 #[derive(Debug, Clone)]
@@ -80,6 +90,23 @@ pub struct WalletMetrics {
     pub blockchain_rpc_calls_total: Counter,
     pub blockchain_rpc_duration: Histogram,
     pub blockchain_rpc_errors_total: Counter,
+
+    // Enhanced business metrics for local validation
+    pub kyc_submissions: CounterVec,
+    pub card_operations: CounterVec,
+    pub trading_operations: CounterVec,
+    pub defi_operations: CounterVec,
+    pub dapp_connections: CounterVec,
+    pub notification_deliveries: CounterVec,
+    pub ml_inferences: CounterVec,
+
+    // Performance metrics
+    pub response_times: HistogramVec,
+    pub concurrent_operations: GaugeVec,
+
+    // Security metrics
+    pub authentication_attempts: CounterVec,
+    pub security_violations: CounterVec,
 }
 
 impl WalletMetrics {
@@ -200,6 +227,65 @@ impl WalletMetrics {
             "Total number of blockchain RPC errors"
         ))?;
 
+        // Enhanced business metrics for local validation
+        let kyc_submissions = CounterVec::new(
+            Opts::new("kyc_submissions_total", "Total KYC submissions"),
+            &["status", "document_type", "country"]
+        )?;
+
+        let card_operations = CounterVec::new(
+            Opts::new("card_operations_total", "Total card operations"),
+            &["operation", "currency", "status"]
+        )?;
+
+        let trading_operations = CounterVec::new(
+            Opts::new("trading_operations_total", "Total trading operations"),
+            &["operation", "strategy_type", "symbol", "status"]
+        )?;
+
+        let defi_operations = CounterVec::new(
+            Opts::new("defi_operations_total", "Total DeFi operations"),
+            &["operation", "protocol", "asset", "status"]
+        )?;
+
+        let dapp_connections = CounterVec::new(
+            Opts::new("dapp_connections_total", "Total DApp connections"),
+            &["dapp_url", "chain", "status"]
+        )?;
+
+        let notification_deliveries = CounterVec::new(
+            Opts::new("notification_deliveries_total", "Total notification deliveries"),
+            &["type", "channel", "status"]
+        )?;
+
+        let ml_inferences = CounterVec::new(
+            Opts::new("ml_inferences_total", "Total ML model inferences"),
+            &["model", "input_type", "status"]
+        )?;
+
+        // Performance metrics
+        let response_times = HistogramVec::new(
+            HistogramOpts::new("response_times_seconds", "Response times by service and operation")
+                .buckets(vec![0.001, 0.005, 0.01, 0.025, 0.05, 0.1, 0.2, 0.5, 1.0]),
+            &["service", "operation"]
+        )?;
+
+        let concurrent_operations = GaugeVec::new(
+            Opts::new("concurrent_operations", "Number of concurrent operations by service"),
+            &["service"]
+        )?;
+
+        // Security metrics
+        let authentication_attempts = CounterVec::new(
+            Opts::new("authentication_attempts_total", "Total authentication attempts"),
+            &["method", "status", "user_agent"]
+        )?;
+
+        let security_violations = CounterVec::new(
+            Opts::new("security_violations_total", "Total security violations"),
+            &["type", "severity", "source"]
+        )?;
+
         // Register all metrics
         registry.register(Box::new(grpc_requests_total.clone()))?;
         registry.register(Box::new(grpc_request_duration.clone()))?;
@@ -222,6 +308,19 @@ impl WalletMetrics {
         registry.register(Box::new(blockchain_rpc_calls_total.clone()))?;
         registry.register(Box::new(blockchain_rpc_duration.clone()))?;
         registry.register(Box::new(blockchain_rpc_errors_total.clone()))?;
+
+        // Register enhanced metrics
+        registry.register(Box::new(kyc_submissions.clone()))?;
+        registry.register(Box::new(card_operations.clone()))?;
+        registry.register(Box::new(trading_operations.clone()))?;
+        registry.register(Box::new(defi_operations.clone()))?;
+        registry.register(Box::new(dapp_connections.clone()))?;
+        registry.register(Box::new(notification_deliveries.clone()))?;
+        registry.register(Box::new(ml_inferences.clone()))?;
+        registry.register(Box::new(response_times.clone()))?;
+        registry.register(Box::new(concurrent_operations.clone()))?;
+        registry.register(Box::new(authentication_attempts.clone()))?;
+        registry.register(Box::new(security_violations.clone()))?;
 
         Ok(Self {
             registry,
@@ -246,6 +345,19 @@ impl WalletMetrics {
             blockchain_rpc_calls_total,
             blockchain_rpc_duration,
             blockchain_rpc_errors_total,
+
+            // Enhanced metrics
+            kyc_submissions,
+            card_operations,
+            trading_operations,
+            defi_operations,
+            dapp_connections,
+            notification_deliveries,
+            ml_inferences,
+            response_times,
+            concurrent_operations,
+            authentication_attempts,
+            security_violations,
         })
     }
 }
@@ -297,7 +409,7 @@ async fn init_tracing(config: &ObservabilityConfig) -> Result<()> {
     Ok(())
 }
 
-/// Create metrics endpoint handler
+/// Create metrics endpoint handler with health checks
 pub fn create_metrics_handler(metrics: Arc<WalletMetrics>) -> axum::Router {
     use axum::{routing::get, Router};
     use prometheus::{Encoder, TextEncoder};
@@ -307,12 +419,39 @@ pub fn create_metrics_handler(metrics: Arc<WalletMetrics>) -> axum::Router {
     ) -> Result<String, axum::http::StatusCode> {
         let encoder = TextEncoder::new();
         let metric_families = metrics.registry.gather();
-        
+
         encoder.encode_to_string(&metric_families)
             .map_err(|_| axum::http::StatusCode::INTERNAL_SERVER_ERROR)
     }
 
+    async fn health_handler() -> Json<Value> {
+        Json(json!({
+            "status": "healthy",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "service": "fo3-wallet-api",
+            "version": env!("CARGO_PKG_VERSION"),
+            "environment": "development"
+        }))
+    }
+
+    async fn readiness_handler() -> Json<Value> {
+        // TODO: Add actual readiness checks (database, redis, external services)
+        Json(json!({
+            "status": "ready",
+            "timestamp": chrono::Utc::now().to_rfc3339(),
+            "checks": {
+                "database": "ok",
+                "redis": "ok",
+                "external_apis": "ok",
+                "ml_models": "ok"
+            },
+            "uptime_seconds": 0 // TODO: Calculate actual uptime
+        }))
+    }
+
     Router::new()
         .route("/metrics", get(metrics_handler))
+        .route("/health", get(health_handler))
+        .route("/ready", get(readiness_handler))
         .with_state(metrics)
 }

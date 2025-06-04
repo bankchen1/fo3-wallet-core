@@ -8,31 +8,31 @@ use fo3_wallet::{
     transaction::provider::{ProviderConfig, ProviderType},
 };
 
-use crate::models::kyc::KycSubmission;
+use crate::models::kyc::{KycSubmission, KycRepository};
 use crate::models::fiat_gateway::{BankAccount, FiatTransaction, TransactionLimits};
 use crate::models::pricing::{PricingRepository, InMemoryPricingRepository};
 use crate::models::notifications::{NotificationRepository, InMemoryNotificationRepository};
 use crate::models::cards::{CardRepository, InMemoryCardRepository};
 use crate::models::spending_insights::{SpendingInsightsRepository, InMemorySpendingInsightsRepository};
 use crate::storage::{DocumentStorage, DocumentStorageConfig};
+use crate::database::connection::DatabasePool;
+use crate::database::repositories::{SqlxKycRepository, SqlxWalletRepository, SqlxCardRepository, SqlxFiatRepository};
+use crate::database::repositories::wallet_repository::WalletRepository;
+use crate::services::integration::{ServiceCoordinator, TransactionManager, EventDispatcher, HealthMonitor};
 use base64::{Engine as _, engine::general_purpose};
 
 /// Application state shared across gRPC services
 pub struct AppState {
-    /// In-memory wallet storage (in production, this would be a database)
-    pub wallets: RwLock<HashMap<String, Wallet>>,
+    /// Database connection pool
+    pub database_pool: DatabasePool,
     /// Provider configuration for blockchain interactions
     pub provider_config: ProviderConfig,
-    /// In-memory KYC submissions storage (in production, this would be a database)
-    pub kyc_submissions: RwLock<HashMap<String, KycSubmission>>,
     /// Document storage service
     pub document_storage: Arc<DocumentStorage>,
-    /// In-memory fiat accounts storage (in production, this would be a database)
-    pub fiat_accounts: RwLock<HashMap<String, BankAccount>>,
-    /// In-memory fiat transactions storage (in production, this would be a database)
-    pub fiat_transactions: RwLock<HashMap<String, FiatTransaction>>,
-    /// In-memory transaction limits storage (in production, this would be a database)
-    pub fiat_limits: RwLock<HashMap<String, TransactionLimits>>,
+    /// KYC repository for KYC submissions and documents
+    pub kyc_repository: Arc<dyn KycRepository<Error = crate::error::ServiceError>>,
+    /// Wallet repository for wallet management
+    pub wallet_repository: Arc<dyn WalletRepository<Error = crate::error::ServiceError>>,
     /// Pricing repository for price data and caching
     pub pricing_repository: Arc<dyn PricingRepository>,
     /// Notification repository for notifications and preferences
@@ -41,10 +41,34 @@ pub struct AppState {
     pub card_repository: Arc<dyn CardRepository>,
     /// Spending insights repository for financial analytics
     pub spending_insights_repository: Arc<dyn SpendingInsightsRepository>,
+    /// Fiat repository for banking operations
+    pub fiat_repository: Arc<SqlxFiatRepository>,
+
+    // Phase 3: Service Integration & Real-time Features
+    /// Service coordinator for cross-service operations
+    pub service_coordinator: Arc<ServiceCoordinator>,
+    /// Transaction manager for distributed transactions
+    pub transaction_manager: Arc<TransactionManager>,
+    /// Event dispatcher for real-time notifications
+    pub event_dispatcher: Arc<EventDispatcher>,
+    /// Health monitor for service monitoring
+    pub health_monitor: Arc<HealthMonitor>,
+
+    // Legacy in-memory storage for backward compatibility during migration
+    /// In-memory wallet storage (deprecated - use wallet_repository)
+    pub wallets: RwLock<HashMap<String, Wallet>>,
+    /// In-memory KYC submissions storage (deprecated - use kyc_repository)
+    pub kyc_submissions: RwLock<HashMap<String, KycSubmission>>,
+    /// In-memory fiat accounts storage (deprecated - use fiat_repository)
+    pub fiat_accounts: RwLock<HashMap<String, BankAccount>>,
+    /// In-memory fiat transactions storage (deprecated - use fiat_repository)
+    pub fiat_transactions: RwLock<HashMap<String, FiatTransaction>>,
+    /// In-memory transaction limits storage (deprecated - use fiat_repository)
+    pub fiat_limits: RwLock<HashMap<String, TransactionLimits>>,
 }
 
 impl AppState {
-    pub fn new() -> Self {
+    pub fn new(database_pool: DatabasePool) -> Self {
         // Default to Ethereum mainnet
         let provider_config = ProviderConfig {
             provider_type: ProviderType::Http,
@@ -84,21 +108,91 @@ impl AppState {
         // Initialize spending insights repository
         let spending_insights_repository: Arc<dyn SpendingInsightsRepository> = Arc::new(InMemorySpendingInsightsRepository::new());
 
+        // Initialize database-backed repositories
+        let kyc_repository: Arc<dyn KycRepository<Error = crate::error::ServiceError>> = Arc::new(SqlxKycRepository::new(database_pool.clone()));
+        let wallet_repository: Arc<dyn WalletRepository<Error = crate::error::ServiceError>> = Arc::new(SqlxWalletRepository::new(database_pool.clone()));
+        let fiat_repository = Arc::new(SqlxFiatRepository::new(database_pool.clone()));
+
+        // Initialize Phase 3 integration services
+        let event_dispatcher = Arc::new(EventDispatcher::new());
+        let transaction_manager = Arc::new(TransactionManager::new(database_pool.clone()));
+        let health_monitor = Arc::new(HealthMonitor::new(
+            database_pool.clone(),
+            event_dispatcher.clone(),
+            None, // Use default config
+        ));
+
+        // Note: ServiceCoordinator will be initialized after AppState creation to avoid circular dependency
+
         Self {
-            wallets: RwLock::new(HashMap::new()),
+            database_pool,
             provider_config,
-            kyc_submissions: RwLock::new(HashMap::new()),
             document_storage,
-            fiat_accounts: RwLock::new(HashMap::new()),
-            fiat_transactions: RwLock::new(HashMap::new()),
-            fiat_limits: RwLock::new(HashMap::new()),
+            kyc_repository,
+            wallet_repository,
             pricing_repository,
             notification_repository,
             card_repository,
             spending_insights_repository,
+            fiat_repository,
+            service_coordinator: Arc::new(ServiceCoordinator::new(Arc::new(AppState::create_placeholder()))),
+            transaction_manager,
+            event_dispatcher,
+            health_monitor,
+
+            // Legacy in-memory storage for backward compatibility
+            wallets: RwLock::new(HashMap::new()),
+            kyc_submissions: RwLock::new(HashMap::new()),
+            fiat_accounts: RwLock::new(HashMap::new()),
+            fiat_transactions: RwLock::new(HashMap::new()),
+            fiat_limits: RwLock::new(HashMap::new()),
         }
     }
 
+    /// Create minimal state for service coordinator initialization
+    fn create_minimal_state(database_pool: DatabasePool) -> AppState {
+        // Create a minimal AppState without service coordinator to avoid circular dependency
+        // The service coordinator will be properly initialized later
+        let kyc_repository: Arc<dyn KycRepository<Error = crate::error::ServiceError>> = Arc::new(SqlxKycRepository::new(database_pool.clone()));
+        let wallet_repository: Arc<dyn WalletRepository<Error = crate::error::ServiceError>> = Arc::new(SqlxWalletRepository::new(database_pool.clone()));
+
+        // Create a dummy service coordinator that will be replaced
+        let dummy_state = AppState {
+            database_pool: database_pool.clone(),
+            provider_config: ProviderConfig::default(),
+            document_storage: Arc::new(DocumentStorage::new(DocumentStorageConfig::default())),
+            kyc_repository: kyc_repository.clone(),
+            wallet_repository: wallet_repository.clone(),
+            pricing_repository: Arc::new(InMemoryPricingRepository::new()),
+            notification_repository: Arc::new(InMemoryNotificationRepository::new()),
+            card_repository: Arc::new(InMemoryCardRepository::new()),
+            spending_insights_repository: Arc::new(InMemorySpendingInsightsRepository::new()),
+            fiat_repository: Arc::new(SqlxFiatRepository::new(database_pool.clone())),
+            service_coordinator: Arc::new(ServiceCoordinator::new(Arc::new(AppState::default()))), // Temporary placeholder
+            transaction_manager: Arc::new(TransactionManager::new(database_pool.clone())),
+            event_dispatcher: Arc::new(EventDispatcher::new()),
+            health_monitor: Arc::new(HealthMonitor::new(database_pool.clone(), Arc::new(EventDispatcher::new()), None)),
+            wallets: RwLock::new(HashMap::new()),
+            kyc_submissions: RwLock::new(HashMap::new()),
+            fiat_accounts: RwLock::new(HashMap::new()),
+            fiat_transactions: RwLock::new(HashMap::new()),
+            fiat_limits: RwLock::new(HashMap::new()),
+        };
+
+        dummy_state
+    }
+
+    /// Create a placeholder AppState for initialization
+    fn create_placeholder() -> AppState {
+        // This is a temporary placeholder to avoid circular dependencies
+        // In a real implementation, you might use a different pattern like dependency injection
+        panic!("Placeholder AppState should not be used directly")
+    }
+}
+
+// Note: Default implementation removed due to async requirements
+
+impl AppState {
     /// Load encryption key from environment or generate a default one
     fn load_encryption_key() -> [u8; 32] {
         if let Ok(key_str) = std::env::var("KYC_ENCRYPTION_KEY") {

@@ -1,0 +1,351 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "wallet.proto";
+
+// DApp signing service for transaction and message signing
+service DAppSigningService {
+  // Message Signing
+  rpc SignMessage(SignMessageRequest) returns (SignMessageResponse);
+  rpc VerifyMessage(VerifyMessageRequest) returns (VerifyMessageResponse);
+  
+  // Transaction Signing
+  rpc SignTransaction(SignTransactionRequest) returns (SignTransactionResponse);
+  rpc SimulateTransaction(SimulateTransactionRequest) returns (SimulateTransactionResponse);
+  rpc EstimateGas(EstimateGasRequest) returns (EstimateGasResponse);
+  
+  // Batch Operations
+  rpc BatchSignTransactions(BatchSignTransactionsRequest) returns (BatchSignTransactionsResponse);
+  rpc BatchSignMessages(BatchSignMessagesRequest) returns (BatchSignMessagesResponse);
+  
+  // Security & Validation
+  rpc ValidateTransaction(ValidateTransactionRequest) returns (ValidateTransactionResponse);
+  rpc CheckTransactionLimits(CheckTransactionLimitsRequest) returns (CheckTransactionLimitsResponse);
+  rpc GetSigningHistory(GetSigningHistoryRequest) returns (GetSigningHistoryResponse);
+  
+  // Analytics & Monitoring
+  rpc GetSigningAnalytics(GetSigningAnalyticsRequest) returns (GetSigningAnalyticsResponse);
+  rpc FlagSuspiciousActivity(FlagSuspiciousActivityRequest) returns (FlagSuspiciousActivityResponse);
+}
+
+// Signature types
+enum SignatureType {
+  SIGNATURE_TYPE_UNSPECIFIED = 0;
+  SIGNATURE_TYPE_PERSONAL_SIGN = 1;
+  SIGNATURE_TYPE_TYPED_DATA_V1 = 2;
+  SIGNATURE_TYPE_TYPED_DATA_V3 = 3;
+  SIGNATURE_TYPE_TYPED_DATA_V4 = 4;
+  SIGNATURE_TYPE_SOLANA_SIGN_MESSAGE = 5;
+  SIGNATURE_TYPE_BITCOIN_SIGN_MESSAGE = 6;
+}
+
+// Transaction types
+enum TransactionType {
+  TRANSACTION_TYPE_UNSPECIFIED = 0;
+  TRANSACTION_TYPE_TRANSFER = 1;
+  TRANSACTION_TYPE_CONTRACT_CALL = 2;
+  TRANSACTION_TYPE_CONTRACT_DEPLOYMENT = 3;
+  TRANSACTION_TYPE_TOKEN_TRANSFER = 4;
+  TRANSACTION_TYPE_NFT_TRANSFER = 5;
+  TRANSACTION_TYPE_DEFI_SWAP = 6;
+  TRANSACTION_TYPE_DEFI_STAKE = 7;
+  TRANSACTION_TYPE_DEFI_UNSTAKE = 8;
+}
+
+// Validation status
+enum ValidationStatus {
+  VALIDATION_STATUS_UNSPECIFIED = 0;
+  VALIDATION_STATUS_VALID = 1;
+  VALIDATION_STATUS_INVALID = 2;
+  VALIDATION_STATUS_WARNING = 3;
+  VALIDATION_STATUS_BLOCKED = 4;
+}
+
+// Risk level
+enum RiskLevel {
+  RISK_LEVEL_UNSPECIFIED = 0;
+  RISK_LEVEL_LOW = 1;
+  RISK_LEVEL_MEDIUM = 2;
+  RISK_LEVEL_HIGH = 3;
+  RISK_LEVEL_CRITICAL = 4;
+}
+
+// Signature result
+message SignatureResult {
+  string signature = 1;
+  string public_key = 2;
+  string address = 3;
+  KeyType key_type = 4;
+  SignatureType signature_type = 5;
+  int64 signed_at = 6;
+  string transaction_hash = 7; // For transaction signatures
+  map<string, string> metadata = 8;
+}
+
+// Transaction simulation result
+message SimulationResult {
+  bool success = 1;
+  string error_message = 2;
+  string gas_estimate = 3;
+  string gas_price = 4;
+  string total_fee = 5;
+  repeated string state_changes = 6; // JSON array of state changes
+  repeated string events = 7; // JSON array of events
+  RiskLevel risk_level = 8;
+  repeated string warnings = 9;
+  map<string, string> metadata = 10;
+}
+
+// Transaction validation result
+message ValidationResult {
+  ValidationStatus status = 1;
+  RiskLevel risk_level = 2;
+  repeated string warnings = 3;
+  repeated string errors = 4;
+  bool is_whitelisted = 5;
+  bool is_blacklisted = 6;
+  string risk_score = 7; // Decimal string
+  map<string, string> metadata = 8;
+}
+
+// Signing history entry
+message SigningHistoryEntry {
+  string entry_id = 1;
+  string user_id = 2;
+  string session_id = 3;
+  string dapp_url = 4;
+  SignatureType signature_type = 5;
+  TransactionType transaction_type = 6;
+  KeyType key_type = 7;
+  string chain_id = 8;
+  string address = 9;
+  string amount = 10; // For transactions
+  string recipient = 11; // For transactions
+  string contract_address = 12; // For contract interactions
+  bool success = 13;
+  string error_message = 14;
+  RiskLevel risk_level = 15;
+  int64 signed_at = 16;
+  map<string, string> metadata = 17;
+}
+
+// Signing analytics
+message SigningAnalytics {
+  string user_id = 1;
+  int32 total_signatures = 2;
+  int32 successful_signatures = 3;
+  int32 failed_signatures = 4;
+  int32 total_transactions = 5;
+  int32 successful_transactions = 6;
+  string total_value_signed = 7; // Decimal string in USD
+  repeated KeyType most_used_chains = 8;
+  repeated TransactionType most_used_types = 9;
+  repeated string top_dapps = 10;
+  map<string, int32> signature_type_counts = 11;
+  double average_transaction_value = 12;
+  RiskLevel average_risk_level = 13;
+  int64 last_activity_at = 14;
+}
+
+// Sign message request
+message SignMessageRequest {
+  string session_id = 1;
+  string address = 2;
+  string message = 3;
+  SignatureType signature_type = 4;
+  KeyType key_type = 5;
+  string chain_id = 6; // Optional for some chains
+  map<string, string> metadata = 7;
+}
+
+// Sign message response
+message SignMessageResponse {
+  SignatureResult result = 1;
+}
+
+// Verify message request
+message VerifyMessageRequest {
+  string message = 1;
+  string signature = 2;
+  string address = 3;
+  SignatureType signature_type = 4;
+  KeyType key_type = 5;
+  string chain_id = 6; // Optional
+}
+
+// Verify message response
+message VerifyMessageResponse {
+  bool is_valid = 1;
+  string recovered_address = 2;
+}
+
+// Sign transaction request
+message SignTransactionRequest {
+  string session_id = 1;
+  string from_address = 2;
+  string to_address = 3;
+  string amount = 4; // Decimal string
+  string gas_limit = 5; // Optional
+  string gas_price = 6; // Optional
+  string data = 7; // Optional contract data
+  KeyType key_type = 8;
+  string chain_id = 9;
+  TransactionType transaction_type = 10;
+  bool simulate_first = 11; // Default true
+  map<string, string> metadata = 12;
+}
+
+// Sign transaction response
+message SignTransactionResponse {
+  SignatureResult result = 1;
+  SimulationResult simulation = 2; // If simulate_first was true
+  ValidationResult validation = 3;
+}
+
+// Simulate transaction request
+message SimulateTransactionRequest {
+  string from_address = 1;
+  string to_address = 2;
+  string amount = 3;
+  string gas_limit = 4; // Optional
+  string gas_price = 5; // Optional
+  string data = 6; // Optional
+  KeyType key_type = 7;
+  string chain_id = 8;
+  map<string, string> metadata = 9;
+}
+
+// Simulate transaction response
+message SimulateTransactionResponse {
+  SimulationResult result = 1;
+}
+
+// Estimate gas request
+message EstimateGasRequest {
+  string from_address = 1;
+  string to_address = 2;
+  string amount = 3;
+  string data = 4; // Optional
+  KeyType key_type = 5;
+  string chain_id = 6;
+}
+
+// Estimate gas response
+message EstimateGasResponse {
+  string gas_estimate = 1;
+  string gas_price = 2;
+  string total_fee = 3;
+}
+
+// Batch sign transactions request
+message BatchSignTransactionsRequest {
+  string session_id = 1;
+  repeated SignTransactionRequest transactions = 2;
+  bool fail_on_first_error = 3; // Default false
+}
+
+// Batch sign transactions response
+message BatchSignTransactionsResponse {
+  repeated SignTransactionResponse results = 1;
+  int32 successful_count = 2;
+  int32 failed_count = 3;
+}
+
+// Batch sign messages request
+message BatchSignMessagesRequest {
+  string session_id = 1;
+  repeated SignMessageRequest messages = 2;
+  bool fail_on_first_error = 3; // Default false
+}
+
+// Batch sign messages response
+message BatchSignMessagesResponse {
+  repeated SignMessageResponse results = 1;
+  int32 successful_count = 2;
+  int32 failed_count = 3;
+}
+
+// Validate transaction request
+message ValidateTransactionRequest {
+  string from_address = 1;
+  string to_address = 2;
+  string amount = 3;
+  string data = 4; // Optional
+  KeyType key_type = 5;
+  string chain_id = 6;
+  TransactionType transaction_type = 7;
+  string dapp_url = 8; // Optional
+}
+
+// Validate transaction response
+message ValidateTransactionResponse {
+  ValidationResult result = 1;
+}
+
+// Check transaction limits request
+message CheckTransactionLimitsRequest {
+  string user_id = 1;
+  string amount = 2;
+  KeyType key_type = 3;
+  string chain_id = 4;
+  TransactionType transaction_type = 5;
+  int64 time_window_hours = 6; // Default 24
+}
+
+// Check transaction limits response
+message CheckTransactionLimitsResponse {
+  bool within_limits = 1;
+  string daily_limit = 2;
+  string daily_used = 3;
+  string daily_remaining = 4;
+  string transaction_limit = 5;
+  repeated string violations = 6;
+}
+
+// Get signing history request
+message GetSigningHistoryRequest {
+  string user_id = 1; // Optional, admin can view all
+  string session_id = 2; // Optional filter
+  string dapp_url = 3; // Optional filter
+  KeyType key_type = 4; // Optional filter
+  TransactionType transaction_type = 5; // Optional filter
+  int64 start_date = 6; // Optional
+  int64 end_date = 7; // Optional
+  int32 page_size = 8; // Default 20, max 100
+  string page_token = 9;
+}
+
+// Get signing history response
+message GetSigningHistoryResponse {
+  repeated SigningHistoryEntry entries = 1;
+  string next_page_token = 2;
+  int32 total_count = 3;
+}
+
+// Get signing analytics request
+message GetSigningAnalyticsRequest {
+  string user_id = 1; // Optional, admin can view all
+  int64 start_date = 2; // Optional, default 30 days ago
+  int64 end_date = 3; // Optional, default now
+}
+
+// Get signing analytics response
+message GetSigningAnalyticsResponse {
+  SigningAnalytics analytics = 1;
+}
+
+// Flag suspicious activity request
+message FlagSuspiciousActivityRequest {
+  string user_id = 1;
+  string session_id = 2; // Optional
+  string reason = 3;
+  string evidence = 4; // JSON string
+  bool auto_suspend = 5; // Default false
+}
+
+// Flag suspicious activity response
+message FlagSuspiciousActivityResponse {
+  bool success = 1;
+  string investigation_id = 2;
+}

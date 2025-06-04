@@ -1,0 +1,418 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// MoonshotTradingService provides community-driven token discovery and trading features
+service MoonshotTradingService {
+  // Get trending tokens with real-time data and pagination
+  rpc GetTrendingTokens(GetTrendingTokensRequest) returns (GetTrendingTokensResponse);
+  
+  // Submit a new token proposal for community consideration
+  rpc SubmitTokenProposal(SubmitTokenProposalRequest) returns (SubmitTokenProposalResponse);
+  
+  // Vote on a token proposal with weighted voting system
+  rpc VoteOnToken(VoteOnTokenRequest) returns (VoteOnTokenResponse);
+  
+  // Get token rankings based on community votes and algorithm
+  rpc GetTokenRankings(GetTokenRankingsRequest) returns (GetTokenRankingsResponse);
+  
+  // Get comprehensive analytics for moonshot trading
+  rpc GetMoonshotAnalytics(GetMoonshotAnalyticsRequest) returns (GetMoonshotAnalyticsResponse);
+  
+  // Get user's voting history and statistics
+  rpc GetUserVotingHistory(GetUserVotingHistoryRequest) returns (GetUserVotingHistoryResponse);
+  
+  // Get detailed token information and metrics
+  rpc GetTokenDetails(GetTokenDetailsRequest) returns (GetTokenDetailsResponse);
+  
+  // Get user's token proposals and their status
+  rpc GetUserProposals(GetUserProposalsRequest) returns (GetUserProposalsResponse);
+  
+  // Get community sentiment analysis for tokens
+  rpc GetTokenSentiment(GetTokenSentimentRequest) returns (GetTokenSentimentResponse);
+  
+  // Get token price predictions and technical analysis
+  rpc GetTokenPredictions(GetTokenPredictionsRequest) returns (GetTokenPredictionsResponse);
+}
+
+// Token information structure
+message Token {
+  string token_id = 1;
+  string symbol = 2;
+  string name = 3;
+  string description = 4;
+  string contract_address = 5;
+  string blockchain = 6;
+  string logo_url = 7;
+  string website_url = 8;
+  string twitter_url = 9;
+  string telegram_url = 10;
+  google.protobuf.Timestamp created_at = 11;
+  TokenMetrics metrics = 12;
+  TokenStatus status = 13;
+}
+
+// Token metrics and statistics
+message TokenMetrics {
+  string current_price = 1;
+  string market_cap = 2;
+  string volume_24h = 3;
+  string price_change_24h = 4;
+  string price_change_percentage_24h = 5;
+  int64 holders_count = 6;
+  int64 transactions_24h = 7;
+  double liquidity_score = 8;
+  double volatility_score = 9;
+  double community_score = 10;
+  int64 total_votes = 11;
+  double average_rating = 12;
+}
+
+// Token status enumeration
+enum TokenStatus {
+  TOKEN_STATUS_UNSPECIFIED = 0;
+  TOKEN_STATUS_PROPOSED = 1;
+  TOKEN_STATUS_UNDER_REVIEW = 2;
+  TOKEN_STATUS_APPROVED = 3;
+  TOKEN_STATUS_REJECTED = 4;
+  TOKEN_STATUS_TRENDING = 5;
+  TOKEN_STATUS_DELISTED = 6;
+}
+
+// Vote information
+message Vote {
+  string vote_id = 1;
+  string user_id = 2;
+  string token_id = 3;
+  VoteType vote_type = 4;
+  int32 rating = 5; // 1-5 stars
+  string comment = 6;
+  double weight = 7; // Voting weight based on user reputation
+  google.protobuf.Timestamp created_at = 8;
+}
+
+// Vote type enumeration
+enum VoteType {
+  VOTE_TYPE_UNSPECIFIED = 0;
+  VOTE_TYPE_BULLISH = 1;
+  VOTE_TYPE_BEARISH = 2;
+  VOTE_TYPE_NEUTRAL = 3;
+}
+
+// Token proposal structure
+message TokenProposal {
+  string proposal_id = 1;
+  string proposer_user_id = 2;
+  Token token = 3;
+  string justification = 4;
+  ProposalStatus status = 5;
+  int64 votes_for = 6;
+  int64 votes_against = 7;
+  google.protobuf.Timestamp created_at = 8;
+  google.protobuf.Timestamp voting_ends_at = 9;
+  repeated string supporting_documents = 10;
+}
+
+// Proposal status enumeration
+enum ProposalStatus {
+  PROPOSAL_STATUS_UNSPECIFIED = 0;
+  PROPOSAL_STATUS_DRAFT = 1;
+  PROPOSAL_STATUS_SUBMITTED = 2;
+  PROPOSAL_STATUS_VOTING = 3;
+  PROPOSAL_STATUS_APPROVED = 4;
+  PROPOSAL_STATUS_REJECTED = 5;
+  PROPOSAL_STATUS_EXPIRED = 6;
+}
+
+// Trending tokens request
+message GetTrendingTokensRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string time_frame = 3; // "1h", "24h", "7d", "30d"
+  string sort_by = 4; // "volume", "price_change", "community_score"
+  string blockchain_filter = 5;
+  double min_market_cap = 6;
+  double max_market_cap = 7;
+}
+
+// Trending tokens response
+message GetTrendingTokensResponse {
+  repeated Token tokens = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  bool has_next_page = 5;
+}
+
+// Submit token proposal request
+message SubmitTokenProposalRequest {
+  string user_id = 1;
+  string symbol = 2;
+  string name = 3;
+  string description = 4;
+  string contract_address = 5;
+  string blockchain = 6;
+  string website_url = 7;
+  string twitter_url = 8;
+  string telegram_url = 9;
+  string justification = 10;
+  repeated string supporting_documents = 11;
+}
+
+// Submit token proposal response
+message SubmitTokenProposalResponse {
+  string proposal_id = 1;
+  ProposalStatus status = 2;
+  google.protobuf.Timestamp voting_ends_at = 3;
+  string message = 4;
+}
+
+// Vote on token request
+message VoteOnTokenRequest {
+  string user_id = 1;
+  string token_id = 2;
+  VoteType vote_type = 3;
+  int32 rating = 4; // 1-5 stars
+  string comment = 5;
+}
+
+// Vote on token response
+message VoteOnTokenResponse {
+  string vote_id = 1;
+  double vote_weight = 2;
+  TokenMetrics updated_metrics = 3;
+  string message = 4;
+}
+
+// Token rankings request
+message GetTokenRankingsRequest {
+  int32 page = 1;
+  int32 page_size = 2;
+  string ranking_type = 3; // "trending", "community", "technical", "overall"
+  string time_frame = 4;
+  string blockchain_filter = 5;
+}
+
+// Token rankings response
+message GetTokenRankingsResponse {
+  repeated RankedToken tokens = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  bool has_next_page = 5;
+}
+
+// Ranked token with position
+message RankedToken {
+  int32 rank = 1;
+  Token token = 2;
+  double score = 3;
+  string score_breakdown = 4; // JSON string with detailed scoring
+}
+
+// Moonshot analytics request
+message GetMoonshotAnalyticsRequest {
+  string time_frame = 1; // "24h", "7d", "30d", "90d"
+  string user_id = 2; // Optional: user-specific analytics
+}
+
+// Moonshot analytics response
+message GetMoonshotAnalyticsResponse {
+  AnalyticsOverview overview = 1;
+  repeated TokenPerformance top_performers = 2;
+  repeated TokenPerformance worst_performers = 3;
+  CommunityStats community_stats = 4;
+  TradingStats trading_stats = 5;
+}
+
+// Analytics overview
+message AnalyticsOverview {
+  int64 total_tokens = 1;
+  int64 active_proposals = 2;
+  int64 total_votes = 3;
+  string total_volume = 4;
+  double average_community_score = 5;
+  int64 new_tokens_added = 6;
+}
+
+// Token performance metrics
+message TokenPerformance {
+  Token token = 1;
+  string performance_percentage = 2;
+  string volume_change = 3;
+  int64 rank_change = 4;
+}
+
+// Community statistics
+message CommunityStats {
+  int64 active_voters = 1;
+  int64 total_proposals = 2;
+  double average_vote_weight = 3;
+  int64 new_users = 4;
+}
+
+// Trading statistics
+message TradingStats {
+  string total_volume = 1;
+  int64 total_transactions = 2;
+  string average_transaction_size = 3;
+  double volume_change_percentage = 4;
+}
+
+// User voting history request
+message GetUserVotingHistoryRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  string time_frame = 4;
+}
+
+// User voting history response
+message GetUserVotingHistoryResponse {
+  repeated Vote votes = 1;
+  UserVotingStats stats = 2;
+  int32 total_count = 3;
+  int32 page = 4;
+  int32 page_size = 5;
+  bool has_next_page = 6;
+}
+
+// User voting statistics
+message UserVotingStats {
+  int64 total_votes = 1;
+  double average_rating = 2;
+  double voting_accuracy = 3;
+  double reputation_score = 4;
+  int64 successful_predictions = 5;
+}
+
+// Token details request
+message GetTokenDetailsRequest {
+  string token_id = 1;
+  bool include_price_history = 2;
+  bool include_vote_history = 3;
+  string time_frame = 4;
+}
+
+// Token details response
+message GetTokenDetailsResponse {
+  Token token = 1;
+  repeated PricePoint price_history = 2;
+  repeated Vote recent_votes = 3;
+  TokenAnalysis analysis = 4;
+}
+
+// Price point for historical data
+message PricePoint {
+  google.protobuf.Timestamp timestamp = 1;
+  string price = 2;
+  string volume = 3;
+}
+
+// Token analysis
+message TokenAnalysis {
+  double technical_score = 1;
+  double fundamental_score = 2;
+  double sentiment_score = 3;
+  string risk_level = 4; // "LOW", "MEDIUM", "HIGH"
+  repeated string key_metrics = 5;
+  string analysis_summary = 6;
+}
+
+// User proposals request
+message GetUserProposalsRequest {
+  string user_id = 1;
+  int32 page = 2;
+  int32 page_size = 3;
+  ProposalStatus status_filter = 4;
+}
+
+// User proposals response
+message GetUserProposalsResponse {
+  repeated TokenProposal proposals = 1;
+  int32 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+  bool has_next_page = 5;
+}
+
+// Token sentiment request
+message GetTokenSentimentRequest {
+  string token_id = 1;
+  string time_frame = 2;
+  bool include_social_media = 3;
+}
+
+// Token sentiment response
+message GetTokenSentimentResponse {
+  SentimentAnalysis sentiment = 1;
+  repeated SentimentSource sources = 2;
+}
+
+// Sentiment analysis
+message SentimentAnalysis {
+  double overall_sentiment = 1; // -1 to 1 scale
+  double bullish_percentage = 2;
+  double bearish_percentage = 3;
+  double neutral_percentage = 4;
+  int64 total_mentions = 5;
+  double sentiment_trend = 6; // Change over time
+}
+
+// Sentiment source
+message SentimentSource {
+  string source_type = 1; // "twitter", "reddit", "telegram", "votes"
+  double sentiment_score = 2;
+  int64 mention_count = 3;
+  double influence_weight = 4;
+}
+
+// Token predictions request
+message GetTokenPredictionsRequest {
+  string token_id = 1;
+  string prediction_horizon = 2; // "1h", "24h", "7d", "30d"
+  bool include_technical_analysis = 3;
+}
+
+// Token predictions response
+message GetTokenPredictionsResponse {
+  repeated PricePrediction predictions = 1;
+  TechnicalAnalysis technical_analysis = 2;
+  double confidence_score = 3;
+}
+
+// Price prediction
+message PricePrediction {
+  string time_horizon = 1;
+  string predicted_price = 2;
+  string price_range_low = 3;
+  string price_range_high = 4;
+  double confidence = 5;
+  string methodology = 6;
+}
+
+// Technical analysis
+message TechnicalAnalysis {
+  string trend_direction = 1; // "BULLISH", "BEARISH", "SIDEWAYS"
+  repeated TechnicalIndicator indicators = 2;
+  repeated SupportResistanceLevel levels = 3;
+  string recommendation = 4; // "BUY", "SELL", "HOLD"
+}
+
+// Technical indicator
+message TechnicalIndicator {
+  string name = 1; // "RSI", "MACD", "SMA", etc.
+  string value = 2;
+  string signal = 3; // "BUY", "SELL", "NEUTRAL"
+  double strength = 4; // 0-1 scale
+}
+
+// Support/Resistance level
+message SupportResistanceLevel {
+  string level_type = 1; // "SUPPORT", "RESISTANCE"
+  string price = 2;
+  double strength = 3;
+  int64 touches = 4;
+}

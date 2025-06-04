@@ -42,6 +42,25 @@ impl TryFrom<String> for KycStatus {
     }
 }
 
+impl KycStatus {
+    /// Create KycStatus from string
+    pub fn from_string(value: &str) -> Self {
+        match value {
+            "pending" => KycStatus::Pending,
+            "under_review" => KycStatus::UnderReview,
+            "approved" => KycStatus::Approved,
+            "rejected" => KycStatus::Rejected,
+            "requires_update" => KycStatus::RequiresUpdate,
+            _ => KycStatus::Pending, // Default to pending for unknown values
+        }
+    }
+
+    /// Convert to string
+    pub fn to_string(&self) -> String {
+        String::from(*self)
+    }
+}
+
 /// Document type for KYC verification
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DocumentType {
@@ -282,13 +301,10 @@ pub trait KycRepository {
     async fn update_submission(&self, submission: &KycSubmission) -> Result<(), Self::Error>;
 
     /// List KYC submissions with pagination
-    async fn list_submissions(
-        &self,
-        page_size: i32,
-        page_token: Option<String>,
-        status_filter: Option<KycStatus>,
-        wallet_id_filter: Option<Uuid>,
-    ) -> Result<(Vec<KycSubmission>, Option<String>), Self::Error>;
+    async fn list_submissions(&self, limit: Option<i32>, offset: Option<i32>) -> Result<Vec<KycSubmission>, Self::Error>;
+
+    /// Delete KYC submission
+    async fn delete_submission(&self, id: Uuid) -> Result<(), Self::Error>;
 
     /// Create a document
     async fn create_document(&self, document: &Document) -> Result<(), Self::Error>;

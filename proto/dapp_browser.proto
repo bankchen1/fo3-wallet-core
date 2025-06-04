@@ -1,0 +1,251 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+import "google/protobuf/timestamp.proto";
+
+// DAppBrowserService provides enhanced DApp browser integration
+service DAppBrowserService {
+  // Connect to a DApp
+  rpc ConnectDApp(ConnectDAppRequest) returns (ConnectDAppResponse);
+  
+  // Disconnect from a DApp
+  rpc DisconnectDApp(DisconnectDAppRequest) returns (DisconnectDAppResponse);
+  
+  // Get active DApp sessions
+  rpc GetActiveSessions(GetActiveSessionsRequest) returns (GetActiveSessionsResponse);
+  
+  // Get DApp whitelist
+  rpc GetDAppWhitelist(GetDAppWhitelistRequest) returns (GetDAppWhitelistResponse);
+  
+  // Validate DApp security
+  rpc ValidateDAppSecurity(ValidateDAppSecurityRequest) returns (ValidateDAppSecurityResponse);
+  
+  // Get supported chains
+  rpc GetSupportedChains(GetSupportedChainsRequest) returns (GetSupportedChainsResponse);
+  
+  // Update session activity
+  rpc UpdateSessionActivity(UpdateSessionActivityRequest) returns (UpdateSessionActivityResponse);
+  
+  // Get DApp permissions
+  rpc GetDAppPermissions(GetDAppPermissionsRequest) returns (GetDAppPermissionsResponse);
+  
+  // Revoke DApp permissions
+  rpc RevokeDAppPermissions(RevokeDAppPermissionsRequest) returns (RevokeDAppPermissionsResponse);
+}
+
+// Connect to DApp request
+message ConnectDAppRequest {
+  string dapp_url = 1;
+  optional string dapp_name = 2;
+  string chain_id = 3;
+  repeated string accounts = 4;
+  repeated string requested_permissions = 5;
+  optional string origin = 6;
+  optional string user_agent = 7;
+}
+
+// Connect to DApp response
+message ConnectDAppResponse {
+  string session_id = 1;
+  repeated string approved_permissions = 2;
+  optional ChainInfo chain_info = 3;
+  repeated string security_warnings = 4;
+  string whitelist_status = 5;
+}
+
+// Disconnect from DApp request
+message DisconnectDAppRequest {
+  string session_id = 1;
+  optional string reason = 2;
+}
+
+// Disconnect from DApp response
+message DisconnectDAppResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Get active sessions request
+message GetActiveSessionsRequest {
+  optional string chain_id = 1;
+  optional string dapp_url = 2;
+}
+
+// Get active sessions response
+message GetActiveSessionsResponse {
+  repeated DAppSessionInfo sessions = 1;
+  uint32 total_count = 2;
+}
+
+// Get DApp whitelist request
+message GetDAppWhitelistRequest {
+  optional string category = 1;
+  optional string chain_id = 2;
+  bool verified_only = 3;
+}
+
+// Get DApp whitelist response
+message GetDAppWhitelistResponse {
+  repeated WhitelistedDApp dapps = 1;
+  uint32 total_count = 2;
+}
+
+// Validate DApp security request
+message ValidateDAppSecurityRequest {
+  string dapp_url = 1;
+  optional string contract_address = 2;
+  repeated string function_signatures = 3;
+}
+
+// Validate DApp security response
+message ValidateDAppSecurityResponse {
+  bool is_safe = 1;
+  string risk_level = 2;
+  double security_score = 3;
+  repeated string warnings = 4;
+  repeated string recommendations = 5;
+  SecurityAnalysis security_analysis = 6;
+}
+
+// Get supported chains request
+message GetSupportedChainsRequest {
+  bool mainnet_only = 1;
+}
+
+// Get supported chains response
+message GetSupportedChainsResponse {
+  repeated ChainInfo chains = 1;
+}
+
+// Update session activity request
+message UpdateSessionActivityRequest {
+  string session_id = 1;
+  string activity_type = 2;
+  optional string transaction_hash = 3;
+  optional uint64 gas_used = 4;
+}
+
+// Update session activity response
+message UpdateSessionActivityResponse {
+  bool success = 1;
+  string message = 2;
+}
+
+// Get DApp permissions request
+message GetDAppPermissionsRequest {
+  string session_id = 1;
+}
+
+// Get DApp permissions response
+message GetDAppPermissionsResponse {
+  repeated string permissions = 1;
+  google.protobuf.Timestamp granted_at = 2;
+  google.protobuf.Timestamp expires_at = 3;
+}
+
+// Revoke DApp permissions request
+message RevokeDAppPermissionsRequest {
+  string session_id = 1;
+  repeated string permissions = 2;
+}
+
+// Revoke DApp permissions response
+message RevokeDAppPermissionsResponse {
+  bool success = 1;
+  repeated string revoked_permissions = 2;
+  string message = 3;
+}
+
+// DApp session information
+message DAppSessionInfo {
+  string session_id = 1;
+  string dapp_name = 2;
+  string dapp_url = 3;
+  string chain_id = 4;
+  repeated string connected_accounts = 5;
+  repeated string permissions = 6;
+  optional google.protobuf.Timestamp created_at = 7;
+  optional google.protobuf.Timestamp last_activity = 8;
+  string status = 9;
+  uint32 transaction_count = 10;
+  string gas_used = 11;
+}
+
+// Whitelisted DApp
+message WhitelistedDApp {
+  string dapp_id = 1;
+  string name = 2;
+  string url = 3;
+  string description = 4;
+  string category = 5;
+  double security_score = 6;
+  repeated string supported_chains = 7;
+  bool verified = 8;
+  optional google.protobuf.Timestamp audit_date = 9;
+  string risk_level = 10;
+  repeated string default_permissions = 11;
+  string logo_url = 12;
+  repeated string tags = 13;
+}
+
+// Chain information
+message ChainInfo {
+  string chain_id = 1;
+  string name = 2;
+  string network_type = 3;
+  string explorer_url = 4;
+  optional NativeCurrency native_currency = 5;
+  bool supports_eip1559 = 6;
+  repeated string rpc_urls = 7;
+  optional string icon_url = 8;
+}
+
+// Native currency
+message NativeCurrency {
+  string symbol = 1;
+  string name = 2;
+  uint32 decimals = 3;
+}
+
+// Security analysis
+message SecurityAnalysis {
+  MalwareAnalysis malware_analysis = 1;
+  PhishingAnalysis phishing_analysis = 2;
+  ContractAnalysis contract_analysis = 3;
+  ReputationAnalysis reputation_analysis = 4;
+}
+
+// Malware analysis
+message MalwareAnalysis {
+  bool is_malicious = 1;
+  double confidence = 2;
+  repeated string signatures_matched = 3;
+  repeated string suspicious_patterns = 4;
+}
+
+// Phishing analysis
+message PhishingAnalysis {
+  bool is_phishing = 1;
+  double confidence = 2;
+  repeated string similar_domains = 3;
+  repeated string suspicious_elements = 4;
+}
+
+// Contract analysis
+message ContractAnalysis {
+  bool is_verified = 1;
+  double risk_score = 2;
+  repeated string risk_factors = 3;
+  repeated string function_risks = 4;
+  optional google.protobuf.Timestamp last_audit = 5;
+}
+
+// Reputation analysis
+message ReputationAnalysis {
+  double reputation_score = 1;
+  uint32 user_reports = 2;
+  uint32 positive_reviews = 3;
+  uint32 negative_reviews = 4;
+  repeated string community_feedback = 5;
+}

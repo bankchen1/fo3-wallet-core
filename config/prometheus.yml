@@ -1,0 +1,173 @@
+# FO3 Wallet Core - Prometheus Configuration for Local Validation
+# 
+# Comprehensive metrics collection configuration for monitoring all 15 core services
+# and ML components during local validation testing
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    environment: 'development'
+    project: 'fo3-wallet-core'
+
+# Alertmanager configuration (optional for development)
+# alerting:
+#   alertmanagers:
+#     - static_configs:
+#         - targets:
+#           - alertmanager:9093
+
+# Load rules once and periodically evaluate them according to the global 'evaluation_interval'
+rule_files:
+  # - "first_rules.yml"
+  # - "second_rules.yml"
+
+# Scrape configuration
+scrape_configs:
+  # Prometheus itself
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # FO3 Wallet API - Main application metrics
+  - job_name: 'fo3-wallet-api'
+    static_configs:
+      - targets: ['fo3-wallet-api:9090']
+    scrape_interval: 5s  # High frequency for local validation
+    metrics_path: /metrics
+    scrape_timeout: 10s
+    honor_labels: true
+    params:
+      format: ['prometheus']
+
+  # FO3 Wallet API - Health checks
+  - job_name: 'fo3-wallet-api-health'
+    static_configs:
+      - targets: ['fo3-wallet-api:9090']
+    scrape_interval: 10s
+    metrics_path: /health
+    scrape_timeout: 5s
+
+  # PostgreSQL metrics (if postgres_exporter is added)
+  - job_name: 'postgres'
+    static_configs:
+      - targets: ['postgres:5432']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    # Note: Requires postgres_exporter sidecar
+
+  # Redis metrics (if redis_exporter is added)
+  - job_name: 'redis'
+    static_configs:
+      - targets: ['redis:6379']
+    scrape_interval: 30s
+    metrics_path: /metrics
+    # Note: Requires redis_exporter sidecar
+
+  # Jaeger metrics
+  - job_name: 'jaeger'
+    static_configs:
+      - targets: ['jaeger:14269']
+    scrape_interval: 30s
+    metrics_path: /metrics
+
+  # Node exporter for system metrics (if added)
+  # - job_name: 'node'
+  #   static_configs:
+  #     - targets: ['node-exporter:9100']
+  #   scrape_interval: 30s
+
+# Recording rules for FO3 Wallet Core business metrics
+# These create derived metrics for better dashboards and alerting
+recording_rules:
+  - name: fo3_wallet_business_metrics
+    interval: 30s
+    rules:
+      # Request rate calculations
+      - record: fo3:grpc_request_rate
+        expr: rate(grpc_requests_total[5m])
+      
+      - record: fo3:grpc_error_rate
+        expr: rate(grpc_errors_total[5m]) / rate(grpc_requests_total[5m])
+      
+      # Response time percentiles
+      - record: fo3:grpc_request_duration_p95
+        expr: histogram_quantile(0.95, rate(grpc_request_duration_seconds_bucket[5m]))
+      
+      - record: fo3:grpc_request_duration_p99
+        expr: histogram_quantile(0.99, rate(grpc_request_duration_seconds_bucket[5m]))
+
+      # Business metrics aggregations
+      - record: fo3:wallet_creation_rate
+        expr: rate(wallets_created_total[5m])
+      
+      - record: fo3:transaction_success_rate
+        expr: rate(transactions_signed_total[5m]) / rate(transactions_broadcast_total[5m])
+      
+      - record: fo3:kyc_approval_rate
+        expr: rate(kyc_submissions_total{status="approved"}[1h]) / rate(kyc_submissions_total[1h])
+      
+      - record: fo3:card_transaction_volume
+        expr: rate(card_operations_total{operation="transaction"}[5m])
+      
+      - record: fo3:defi_operation_success_rate
+        expr: rate(defi_operations_total{status="success"}[5m]) / rate(defi_operations_total[5m])
+      
+      - record: fo3:trading_operation_success_rate
+        expr: rate(trading_operations_total{status="success"}[5m]) / rate(trading_operations_total[5m])
+      
+      - record: fo3:dapp_connection_success_rate
+        expr: rate(dapp_connections_total{status="success"}[5m]) / rate(dapp_connections_total[5m])
+      
+      - record: fo3:ml_inference_rate
+        expr: rate(ml_inferences_total[5m])
+      
+      - record: fo3:ml_inference_success_rate
+        expr: rate(ml_inferences_total{status="success"}[5m]) / rate(ml_inferences_total[5m])
+
+      # Security metrics
+      - record: fo3:auth_failure_rate
+        expr: rate(authentication_attempts_total{status="failed"}[5m]) / rate(authentication_attempts_total[5m])
+      
+      - record: fo3:security_violation_rate
+        expr: rate(security_violations_total[5m])
+
+      # Performance metrics
+      - record: fo3:response_time_p95_by_service
+        expr: histogram_quantile(0.95, rate(response_times_seconds_bucket[5m]))
+      
+      - record: fo3:concurrent_operations_max
+        expr: max(concurrent_operations) by (service)
+
+# Alerting rules for local validation (optional)
+# alerting_rules:
+#   - name: fo3_wallet_alerts
+#     rules:
+#       - alert: HighErrorRate
+#         expr: fo3:grpc_error_rate > 0.1
+#         for: 2m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "High error rate detected"
+#           description: "Error rate is {{ $value }} for the last 2 minutes"
+#       
+#       - alert: HighResponseTime
+#         expr: fo3:grpc_request_duration_p95 > 0.5
+#         for: 5m
+#         labels:
+#           severity: warning
+#         annotations:
+#           summary: "High response time detected"
+#           description: "95th percentile response time is {{ $value }}s"
+#       
+#       - alert: MLInferenceFailures
+#         expr: fo3:ml_inference_success_rate < 0.95
+#         for: 1m
+#         labels:
+#           severity: critical
+#         annotations:
+#           summary: "ML inference success rate below threshold"
+#           description: "ML inference success rate is {{ $value }}"

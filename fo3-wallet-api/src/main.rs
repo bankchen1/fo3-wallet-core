@@ -6,11 +6,14 @@ mod services;
 mod error;
 mod state;
 mod middleware;
+mod ml;
 mod tls;
 mod websocket;
 mod observability;
 mod models;
 mod storage;
+mod database;
+mod cache;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -24,6 +27,7 @@ use fo3_wallet::{
 };
 
 use crate::state::AppState;
+use crate::database::{initialize_database, ConnectionConfig as DatabaseConfig};
 use crate::services::{
     wallet::WalletServiceImpl,
     transaction::TransactionServiceImpl,
@@ -37,6 +41,15 @@ use crate::services::{
     notifications::NotificationServiceImpl,
     cards::CardServiceImpl,
     spending_insights::SpendingInsightsServiceImpl,
+    card_funding::CardFundingServiceImpl,
+    ledger::LedgerServiceImpl,
+    rewards::RewardsServiceImpl,
+    referral::ReferralServiceImpl,
+    earn::EarnServiceImpl,
+    moonshot::MoonshotTradingServiceImpl,
+    automated_trading::AutomatedTradingServiceImpl,
+    market_intelligence::MarketIntelligenceServiceImpl,
+    dapp_browser::DAppBrowserServiceImpl,
 };
 use crate::middleware::{
     auth::AuthService,
@@ -47,6 +60,13 @@ use crate::middleware::{
     pricing_guard::PricingGuard,
     card_guard::CardGuard,
     spending_guard::SpendingGuard,
+    card_funding_guard::CardFundingGuard,
+    ledger_guard::LedgerGuard,
+    rewards_guard::RewardsGuard,
+    referral_guard::ReferralGuard,
+    earn_guard::EarnGuard,
+    moonshot_guard::MoonshotGuard,
+    trading_guard::TradingGuard,
 };
 use crate::websocket::{WebSocketManager, WebSocketServer};
 use crate::observability::{ObservabilityConfig, init_observability};
@@ -83,8 +103,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     tracing::info!("Starting FO3 Wallet Core API with enhanced security and observability");
 
-    // Create application state
-    let state = Arc::new(AppState::new());
+    // Initialize database
+    let database_config = DatabaseConfig::from_env();
+    let database_pool = initialize_database(&database_config).await?;
+    tracing::info!("Database initialized successfully");
+
+    // Create application state with database pool
+    let state = Arc::new(AppState::new(database_pool));
 
     // Initialize security services
     let auth_service = Arc::new(AuthService::new(state.clone()));
@@ -127,6 +152,138 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         state.clone(),
         auth_service.clone(),
         audit_logger.clone()
+    );
+
+    // Initialize card funding repository and guard
+    let card_funding_repository = Arc::new(crate::models::InMemoryCardFundingRepository::new());
+    let card_funding_guard = Arc::new(CardFundingGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        card_funding_repository.clone()
+    ));
+    let card_funding_service = CardFundingServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        card_funding_guard.clone(),
+        card_funding_repository.clone()
+    );
+
+    // Initialize ledger repository and guard
+    let ledger_repository = Arc::new(crate::models::InMemoryLedgerRepository::new());
+    let ledger_guard = Arc::new(LedgerGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        ledger_repository.clone()
+    ));
+    let ledger_service = LedgerServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        ledger_guard.clone(),
+        ledger_repository.clone()
+    );
+
+    // Initialize rewards repository and guard
+    let rewards_repository = Arc::new(crate::models::InMemoryRewardsRepository::default());
+    let rewards_guard = Arc::new(RewardsGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        rewards_repository.clone()
+    ));
+    let rewards_service = RewardsServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        rewards_guard.clone(),
+        rewards_repository.clone()
+    );
+
+    // Initialize referral repository and guard
+    let referral_repository = Arc::new(crate::models::InMemoryReferralRepository::default());
+    let referral_guard = Arc::new(ReferralGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        referral_repository.clone()
+    ));
+    let referral_service = ReferralServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        referral_guard.clone(),
+        referral_repository.clone()
+    );
+
+    // Initialize earn repository and guard
+    let earn_repository = Arc::new(crate::models::InMemoryEarnRepository::new());
+    let earn_guard = Arc::new(EarnGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        earn_repository.clone()
+    ));
+    let earn_service = EarnServiceImpl::new(
+        state.clone(),
+        auth_service.clone(),
+        audit_logger.clone(),
+        earn_guard.clone(),
+        earn_repository.clone()
+    );
+
+    // Initialize moonshot repository and guard
+    let moonshot_repository = Arc::new(crate::models::InMemoryMoonshotRepository::new());
+    moonshot_repository.initialize_mock_data().await?;
+    let moonshot_guard = Arc::new(MoonshotGuard::new()?);
+    let moonshot_service = MoonshotTradingServiceImpl::new(
+        moonshot_repository,
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        moonshot_guard
+    );
+
+    // Initialize ML model manager
+    let ml_config = crate::ml::MLConfig::default();
+    let model_manager = Arc::new(crate::ml::ModelManager::new(ml_config));
+
+    // Load ML models
+    if let Err(e) = model_manager.load_model("sentiment_v1", "/app/models/sentiment").await {
+        tracing::warn!("Failed to load sentiment model: {}", e);
+    }
+    if let Err(e) = model_manager.load_model("yield_predictor_v1", "/app/models/yield").await {
+        tracing::warn!("Failed to load yield predictor model: {}", e);
+    }
+
+    // Initialize trading guard and automated trading service
+    let trading_guard = Arc::new(TradingGuard::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone()
+    ));
+    let automated_trading_service = AutomatedTradingServiceImpl::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        trading_guard.clone(),
+        model_manager.clone()
+    );
+
+    // Initialize market intelligence service with ML integration
+    let market_intelligence_service = MarketIntelligenceServiceImpl::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone(),
+        model_manager.clone()
+    );
+
+    // Initialize DApp browser service
+    let dapp_browser_service = DAppBrowserServiceImpl::new(
+        auth_service.clone(),
+        audit_logger.clone(),
+        rate_limiter.clone()
     );
 
     // Get server addresses
@@ -208,6 +365,51 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .add_service(
             tonic_web::enable(
                 proto::fo3::wallet::v1::spending_insights_service_server::SpendingInsightsServiceServer::new(spending_insights_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::card_funding_service_server::CardFundingServiceServer::new(card_funding_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::ledger_service_server::LedgerServiceServer::new(ledger_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::rewards_service_server::RewardsServiceServer::new(rewards_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::referral_service_server::ReferralServiceServer::new(referral_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::earn_service_server::EarnServiceServer::new(earn_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::moonshot_trading_service_server::MoonshotTradingServiceServer::new(moonshot_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::automated_trading_service_server::AutomatedTradingServiceServer::new(automated_trading_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::market_intelligence_service_server::MarketIntelligenceServiceServer::new(market_intelligence_service)
+            )
+        )
+        .add_service(
+            tonic_web::enable(
+                proto::fo3::wallet::v1::d_app_browser_service_server::DAppBrowserServiceServer::new(dapp_browser_service)
             )
         );
 

@@ -1,0 +1,706 @@
+syntax = "proto3";
+
+package fo3.wallet.v1;
+
+// Rewards service for points-based reward system and user engagement
+service RewardsService {
+  // Core reward operations
+  rpc CreateRewardRule(CreateRewardRuleRequest) returns (CreateRewardRuleResponse);
+  rpc GetRewardRule(GetRewardRuleRequest) returns (GetRewardRuleResponse);
+  rpc ListRewardRules(ListRewardRulesRequest) returns (ListRewardRulesResponse);
+  rpc UpdateRewardRule(UpdateRewardRuleRequest) returns (UpdateRewardRuleResponse);
+  rpc DeleteRewardRule(DeleteRewardRuleRequest) returns (DeleteRewardRuleResponse);
+  
+  // User reward operations
+  rpc GetUserRewards(GetUserRewardsRequest) returns (GetUserRewardsResponse);
+  rpc GetRewardBalance(GetRewardBalanceRequest) returns (GetRewardBalanceResponse);
+  rpc GetRewardHistory(GetRewardHistoryRequest) returns (GetRewardHistoryResponse);
+  rpc UpdateUserTier(UpdateUserTierRequest) returns (UpdateUserTierResponse);
+  
+  // Points earning operations
+  rpc AwardPoints(AwardPointsRequest) returns (AwardPointsResponse);
+  rpc AwardTransactionReward(AwardTransactionRewardRequest) returns (AwardTransactionRewardResponse);
+  rpc AwardReferralBonus(AwardReferralBonusRequest) returns (AwardReferralBonusResponse);
+  rpc AwardMilestoneReward(AwardMilestoneRewardRequest) returns (AwardMilestoneRewardResponse);
+  rpc AwardPromotionalReward(AwardPromotionalRewardRequest) returns (AwardPromotionalRewardResponse);
+  
+  // Points redemption operations
+  rpc RedeemPoints(RedeemPointsRequest) returns (RedeemPointsResponse);
+  rpc GetRedemptionOptions(GetRedemptionOptionsRequest) returns (GetRedemptionOptionsResponse);
+  rpc GetRedemptionHistory(GetRedemptionHistoryRequest) returns (GetRedemptionHistoryResponse);
+  rpc CancelRedemption(CancelRedemptionRequest) returns (CancelRedemptionResponse);
+  
+  // Analytics and reporting
+  rpc GetRewardMetrics(GetRewardMetricsRequest) returns (GetRewardMetricsResponse);
+  rpc GetUserRewardAnalytics(GetUserRewardAnalyticsRequest) returns (GetUserRewardAnalyticsResponse);
+  rpc GenerateRewardReport(GenerateRewardReportRequest) returns (GenerateRewardReportResponse);
+  rpc ExportRewardData(ExportRewardDataRequest) returns (ExportRewardDataResponse);
+  
+  // Administrative operations
+  rpc BulkAwardPoints(BulkAwardPointsRequest) returns (BulkAwardPointsResponse);
+  rpc ExpirePoints(ExpirePointsRequest) returns (ExpirePointsResponse);
+  rpc AdjustPointBalance(AdjustPointBalanceRequest) returns (AdjustPointBalanceResponse);
+  rpc GetRewardAuditTrail(GetRewardAuditTrailRequest) returns (GetRewardAuditTrailResponse);
+}
+
+// Reward rule types
+enum RewardRuleType {
+  REWARD_RULE_TYPE_UNSPECIFIED = 0;
+  REWARD_RULE_TYPE_TRANSACTION = 1;      // Points per transaction
+  REWARD_RULE_TYPE_SPENDING = 2;         // Points per dollar spent
+  REWARD_RULE_TYPE_FUNDING = 3;          // Points for funding activities
+  REWARD_RULE_TYPE_REFERRAL = 4;         // Referral bonuses
+  REWARD_RULE_TYPE_MILESTONE = 5;        // Achievement milestones
+  REWARD_RULE_TYPE_PROMOTIONAL = 6;      // Time-limited promotions
+  REWARD_RULE_TYPE_TIER_BONUS = 7;       // Tier-based multipliers
+  REWARD_RULE_TYPE_CATEGORY = 8;         // Category-specific rewards
+}
+
+// Reward rule status
+enum RewardRuleStatus {
+  REWARD_RULE_STATUS_UNSPECIFIED = 0;
+  REWARD_RULE_STATUS_ACTIVE = 1;
+  REWARD_RULE_STATUS_INACTIVE = 2;
+  REWARD_RULE_STATUS_EXPIRED = 3;
+  REWARD_RULE_STATUS_SUSPENDED = 4;
+}
+
+// User reward tiers
+enum UserRewardTier {
+  USER_REWARD_TIER_UNSPECIFIED = 0;
+  USER_REWARD_TIER_BRONZE = 1;           // 1x multiplier
+  USER_REWARD_TIER_SILVER = 2;           // 1.5x multiplier
+  USER_REWARD_TIER_GOLD = 3;             // 2x multiplier
+  USER_REWARD_TIER_PLATINUM = 4;         // 3x multiplier
+}
+
+// Reward transaction types
+enum RewardTransactionType {
+  REWARD_TRANSACTION_TYPE_UNSPECIFIED = 0;
+  REWARD_TRANSACTION_TYPE_EARNED = 1;
+  REWARD_TRANSACTION_TYPE_REDEEMED = 2;
+  REWARD_TRANSACTION_TYPE_EXPIRED = 3;
+  REWARD_TRANSACTION_TYPE_ADJUSTED = 4;
+  REWARD_TRANSACTION_TYPE_BONUS = 5;
+  REWARD_TRANSACTION_TYPE_PENALTY = 6;
+}
+
+// Reward transaction status
+enum RewardTransactionStatus {
+  REWARD_TRANSACTION_STATUS_UNSPECIFIED = 0;
+  REWARD_TRANSACTION_STATUS_PENDING = 1;
+  REWARD_TRANSACTION_STATUS_COMPLETED = 2;
+  REWARD_TRANSACTION_STATUS_FAILED = 3;
+  REWARD_TRANSACTION_STATUS_CANCELLED = 4;
+  REWARD_TRANSACTION_STATUS_EXPIRED = 5;
+}
+
+// Redemption types
+enum RedemptionType {
+  REDEMPTION_TYPE_UNSPECIFIED = 0;
+  REDEMPTION_TYPE_CASH = 1;              // Points to cash
+  REDEMPTION_TYPE_CREDIT = 2;            // Points to account credit
+  REDEMPTION_TYPE_GIFT_CARD = 3;         // Points to gift cards
+  REDEMPTION_TYPE_MERCHANDISE = 4;       // Points to physical items
+  REDEMPTION_TYPE_DISCOUNT = 5;          // Points to transaction discounts
+  REDEMPTION_TYPE_CHARITY = 6;           // Points to charitable donations
+}
+
+// Redemption status
+enum RedemptionStatus {
+  REDEMPTION_STATUS_UNSPECIFIED = 0;
+  REDEMPTION_STATUS_PENDING = 1;
+  REDEMPTION_STATUS_PROCESSING = 2;
+  REDEMPTION_STATUS_COMPLETED = 3;
+  REDEMPTION_STATUS_FAILED = 4;
+  REDEMPTION_STATUS_CANCELLED = 5;
+  REDEMPTION_STATUS_EXPIRED = 6;
+}
+
+// Reward rule definition
+message RewardRule {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  RewardRuleType type = 4;
+  RewardRuleStatus status = 5;
+  
+  // Rule configuration
+  string points_per_unit = 6;            // Decimal string for points awarded per unit
+  string minimum_amount = 7;             // Decimal string for minimum transaction amount
+  string maximum_points = 8;             // Decimal string for maximum points per transaction
+  UserRewardTier minimum_tier = 9;       // Minimum user tier required
+  repeated string categories = 10;        // Applicable merchant categories
+  repeated string currencies = 11;        // Applicable currencies
+  
+  // Time constraints
+  string start_date = 12;                // ISO 8601 timestamp
+  string end_date = 13;                  // ISO 8601 timestamp
+  repeated int32 days_of_week = 14;      // 0=Sunday, 1=Monday, etc.
+  string start_time = 15;                // HH:MM format
+  string end_time = 16;                  // HH:MM format
+  
+  // Usage limits
+  int32 max_uses_per_user = 17;
+  int32 max_uses_per_day = 18;
+  int32 max_uses_per_month = 19;
+  int32 total_uses_remaining = 20;
+  
+  // Metadata
+  map<string, string> metadata = 21;
+  string created_at = 22;                // ISO 8601 timestamp
+  string updated_at = 23;                // ISO 8601 timestamp
+  string created_by = 24;
+}
+
+// User reward information
+message UserRewards {
+  string user_id = 1;
+  string total_points = 2;               // Decimal string for total available points
+  string lifetime_earned = 3;            // Decimal string for lifetime points earned
+  string lifetime_redeemed = 4;          // Decimal string for lifetime points redeemed
+  string pending_points = 5;             // Decimal string for pending points
+  string expiring_points = 6;            // Decimal string for points expiring soon
+  UserRewardTier current_tier = 7;
+  string tier_progress = 8;              // Decimal string for progress to next tier
+  string next_tier_threshold = 9;        // Decimal string for points needed for next tier
+  
+  // Tier benefits
+  string tier_multiplier = 10;           // Decimal string for current tier multiplier
+  repeated string tier_benefits = 11;    // List of tier-specific benefits
+  
+  // Expiration tracking
+  string next_expiration_date = 12;      // ISO 8601 timestamp
+  string next_expiration_amount = 13;    // Decimal string for points expiring next
+  
+  // Metadata
+  string last_activity_date = 14;        // ISO 8601 timestamp
+  string tier_upgrade_date = 15;         // ISO 8601 timestamp
+  map<string, string> metadata = 16;
+  string created_at = 17;                // ISO 8601 timestamp
+  string updated_at = 18;                // ISO 8601 timestamp
+}
+
+// Reward transaction record
+message RewardTransaction {
+  string id = 1;
+  string user_id = 2;
+  RewardTransactionType type = 3;
+  RewardTransactionStatus status = 4;
+
+  // Transaction details
+  string points = 5;                     // Decimal string for points amount
+  string multiplier = 6;                 // Decimal string for tier multiplier applied
+  string base_points = 7;                // Decimal string for base points before multiplier
+  string currency = 8;                   // Currency for monetary transactions
+  string exchange_rate = 9;              // Decimal string for points-to-currency rate
+
+  // Source information
+  string source_type = 10;               // transaction, referral, milestone, etc.
+  string source_id = 11;                 // ID of source transaction/event
+  string reward_rule_id = 12;            // ID of reward rule applied
+  string reference_number = 13;          // Unique reference for tracking
+
+  // Expiration
+  string expires_at = 14;                // ISO 8601 timestamp
+  bool is_expired = 15;
+
+  // Metadata
+  string description = 16;
+  map<string, string> metadata = 17;
+  string created_at = 18;                // ISO 8601 timestamp
+  string updated_at = 19;                // ISO 8601 timestamp
+}
+
+// Redemption record
+message Redemption {
+  string id = 1;
+  string user_id = 2;
+  RedemptionType type = 3;
+  RedemptionStatus status = 4;
+
+  // Redemption details
+  string points_redeemed = 5;            // Decimal string for points used
+  string cash_value = 6;                 // Decimal string for cash equivalent
+  string currency = 7;                   // Currency for cash redemptions
+  string exchange_rate = 8;              // Decimal string for points-to-cash rate
+
+  // Redemption target
+  string target_account = 9;             // Account for cash/credit redemptions
+  string gift_card_code = 10;            // Gift card code for gift card redemptions
+  string merchant_name = 11;             // Merchant for gift cards/merchandise
+  string tracking_number = 12;           // Shipping tracking for merchandise
+
+  // Processing information
+  string processing_fee = 13;            // Decimal string for processing fee
+  string net_amount = 14;                // Decimal string for net amount after fees
+  string estimated_delivery = 15;        // ISO 8601 timestamp for delivery estimate
+  string actual_delivery = 16;           // ISO 8601 timestamp for actual delivery
+
+  // Metadata
+  string description = 17;
+  map<string, string> metadata = 18;
+  string created_at = 19;                // ISO 8601 timestamp
+  string updated_at = 20;                // ISO 8601 timestamp
+  string completed_at = 21;              // ISO 8601 timestamp
+}
+
+// Redemption option
+message RedemptionOption {
+  string id = 1;
+  string name = 2;
+  string description = 3;
+  RedemptionType type = 4;
+  bool is_active = 5;
+
+  // Pricing
+  string points_required = 6;            // Decimal string for points needed
+  string cash_value = 7;                 // Decimal string for cash equivalent
+  string currency = 8;                   // Currency for cash value
+  string processing_fee = 9;             // Decimal string for processing fee percentage
+
+  // Availability
+  int32 quantity_available = 10;         // -1 for unlimited
+  int32 quantity_redeemed = 11;
+  UserRewardTier minimum_tier = 12;      // Minimum tier required
+
+  // Constraints
+  string minimum_points_balance = 13;    // Decimal string for minimum balance required
+  int32 max_redemptions_per_user = 14;   // Per user limit
+  int32 max_redemptions_per_day = 15;    // Daily limit
+
+  // Metadata
+  string image_url = 16;
+  repeated string tags = 17;
+  map<string, string> metadata = 18;
+  string created_at = 19;                // ISO 8601 timestamp
+  string updated_at = 20;                // ISO 8601 timestamp
+}
+
+// Reward metrics
+message RewardMetrics {
+  // Overall metrics
+  string total_points_awarded = 1;       // Decimal string for total points awarded
+  string total_points_redeemed = 2;      // Decimal string for total points redeemed
+  string total_points_expired = 3;       // Decimal string for total points expired
+  string total_cash_value = 4;           // Decimal string for total cash value of rewards
+  int64 total_users = 5;                 // Total users with rewards
+  int64 active_users = 6;                // Users with recent activity
+
+  // Time period metrics
+  string period_start = 7;               // ISO 8601 timestamp
+  string period_end = 8;                 // ISO 8601 timestamp
+  string period_points_awarded = 9;      // Decimal string for period points awarded
+  string period_points_redeemed = 10;    // Decimal string for period points redeemed
+  int64 period_transactions = 11;        // Number of reward transactions in period
+  int64 period_redemptions = 12;         // Number of redemptions in period
+
+  // Tier distribution
+  int64 bronze_users = 13;
+  int64 silver_users = 14;
+  int64 gold_users = 15;
+  int64 platinum_users = 16;
+
+  // Top categories
+  repeated CategoryMetrics top_categories = 17;
+  repeated RedemptionMetrics top_redemptions = 18;
+
+  // Metadata
+  string generated_at = 19;              // ISO 8601 timestamp
+  map<string, string> metadata = 20;
+}
+
+// Category metrics
+message CategoryMetrics {
+  string category = 1;
+  string points_awarded = 2;             // Decimal string for points awarded in category
+  int64 transaction_count = 3;           // Number of transactions in category
+  string average_points = 4;             // Decimal string for average points per transaction
+}
+
+// Redemption metrics
+message RedemptionMetrics {
+  RedemptionType type = 1;
+  string points_redeemed = 2;            // Decimal string for points redeemed
+  int64 redemption_count = 3;            // Number of redemptions
+  string average_points = 4;             // Decimal string for average points per redemption
+}
+
+// Request/Response messages for reward rule operations
+message CreateRewardRuleRequest {
+  RewardRule rule = 1;
+}
+
+message CreateRewardRuleResponse {
+  RewardRule rule = 1;
+  string message = 2;
+}
+
+message GetRewardRuleRequest {
+  string rule_id = 1;
+}
+
+message GetRewardRuleResponse {
+  RewardRule rule = 1;
+}
+
+message ListRewardRulesRequest {
+  RewardRuleType type = 1;
+  RewardRuleStatus status = 2;
+  string category = 3;
+  string currency = 4;
+  bool active_only = 5;
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message ListRewardRulesResponse {
+  repeated RewardRule rules = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UpdateRewardRuleRequest {
+  RewardRule rule = 1;
+  repeated string update_mask = 2;
+}
+
+message UpdateRewardRuleResponse {
+  RewardRule rule = 1;
+  string message = 2;
+}
+
+message DeleteRewardRuleRequest {
+  string rule_id = 1;
+  string reason = 2;
+}
+
+message DeleteRewardRuleResponse {
+  string message = 1;
+}
+
+// Request/Response messages for user reward operations
+message GetUserRewardsRequest {
+  string user_id = 1;
+}
+
+message GetUserRewardsResponse {
+  UserRewards rewards = 1;
+}
+
+message GetRewardBalanceRequest {
+  string user_id = 1;
+  string currency = 2;
+}
+
+message GetRewardBalanceResponse {
+  string total_points = 1;               // Decimal string for total available points
+  string pending_points = 2;             // Decimal string for pending points
+  string expiring_points = 3;            // Decimal string for points expiring soon
+  string next_expiration_date = 4;       // ISO 8601 timestamp
+  UserRewardTier current_tier = 5;
+  string tier_multiplier = 6;            // Decimal string for current tier multiplier
+}
+
+message GetRewardHistoryRequest {
+  string user_id = 1;
+  RewardTransactionType type = 2;
+  RewardTransactionStatus status = 3;
+  string start_date = 4;                 // ISO 8601 timestamp
+  string end_date = 5;                   // ISO 8601 timestamp
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message GetRewardHistoryResponse {
+  repeated RewardTransaction transactions = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message UpdateUserTierRequest {
+  string user_id = 1;
+  UserRewardTier new_tier = 2;
+  string reason = 3;
+  bool force_update = 4;
+}
+
+message UpdateUserTierResponse {
+  UserRewards rewards = 1;
+  string message = 2;
+}
+
+// Request/Response messages for points earning operations
+message AwardPointsRequest {
+  string user_id = 1;
+  string points = 2;                     // Decimal string for points to award
+  string source_type = 3;                // Source type (transaction, referral, etc.)
+  string source_id = 4;                  // Source ID for tracking
+  string description = 5;
+  map<string, string> metadata = 6;
+  string expires_at = 7;                 // ISO 8601 timestamp
+}
+
+message AwardPointsResponse {
+  RewardTransaction transaction = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+message AwardTransactionRewardRequest {
+  string user_id = 1;
+  string transaction_id = 2;
+  string amount = 3;                     // Decimal string for transaction amount
+  string currency = 4;
+  string merchant_category = 5;
+  map<string, string> metadata = 6;
+}
+
+message AwardTransactionRewardResponse {
+  repeated RewardTransaction transactions = 1;
+  UserRewards updated_rewards = 2;
+  string total_points_awarded = 3;       // Decimal string for total points awarded
+  string message = 4;
+}
+
+message AwardReferralBonusRequest {
+  string referrer_user_id = 1;
+  string referred_user_id = 2;
+  string referral_code = 3;
+  string bonus_type = 4;                 // signup, first_transaction, milestone
+  map<string, string> metadata = 5;
+}
+
+message AwardReferralBonusResponse {
+  repeated RewardTransaction transactions = 1;
+  UserRewards referrer_rewards = 2;
+  UserRewards referred_rewards = 3;
+  string total_bonus_awarded = 4;        // Decimal string for total bonus points
+  string message = 5;
+}
+
+message AwardMilestoneRewardRequest {
+  string user_id = 1;
+  string milestone_type = 2;             // first_transaction, spending_threshold, etc.
+  string milestone_value = 3;            // Decimal string for milestone value
+  map<string, string> metadata = 4;
+}
+
+message AwardMilestoneRewardResponse {
+  RewardTransaction transaction = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+message AwardPromotionalRewardRequest {
+  string user_id = 1;
+  string promotion_id = 2;
+  string promotion_code = 3;
+  map<string, string> metadata = 4;
+}
+
+message AwardPromotionalRewardResponse {
+  RewardTransaction transaction = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+// Request/Response messages for redemption operations
+message RedeemPointsRequest {
+  string user_id = 1;
+  string redemption_option_id = 2;
+  string points_to_redeem = 3;           // Decimal string for points to redeem
+  string target_account = 4;             // For cash/credit redemptions
+  map<string, string> metadata = 5;
+}
+
+message RedeemPointsResponse {
+  Redemption redemption = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+message GetRedemptionOptionsRequest {
+  string user_id = 1;
+  RedemptionType type = 2;
+  UserRewardTier minimum_tier = 3;
+  string minimum_points = 4;             // Decimal string for minimum points filter
+  bool active_only = 5;
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message GetRedemptionOptionsResponse {
+  repeated RedemptionOption options = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message GetRedemptionHistoryRequest {
+  string user_id = 1;
+  RedemptionType type = 2;
+  RedemptionStatus status = 3;
+  string start_date = 4;                 // ISO 8601 timestamp
+  string end_date = 5;                   // ISO 8601 timestamp
+  int32 page = 6;
+  int32 page_size = 7;
+}
+
+message GetRedemptionHistoryResponse {
+  repeated Redemption redemptions = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+message CancelRedemptionRequest {
+  string redemption_id = 1;
+  string reason = 2;
+}
+
+message CancelRedemptionResponse {
+  Redemption redemption = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+// Request/Response messages for analytics and reporting
+message GetRewardMetricsRequest {
+  string start_date = 1;                 // ISO 8601 timestamp
+  string end_date = 2;                   // ISO 8601 timestamp
+  repeated RewardRuleType rule_types = 3;
+  repeated UserRewardTier tiers = 4;
+  repeated string currencies = 5;
+}
+
+message GetRewardMetricsResponse {
+  RewardMetrics metrics = 1;
+}
+
+message GetUserRewardAnalyticsRequest {
+  string user_id = 1;
+  string start_date = 2;                 // ISO 8601 timestamp
+  string end_date = 3;                   // ISO 8601 timestamp
+  bool include_projections = 4;
+}
+
+message GetUserRewardAnalyticsResponse {
+  UserRewards current_rewards = 1;
+  repeated RewardTransaction recent_transactions = 2;
+  repeated CategoryMetrics category_breakdown = 3;
+  string projected_tier_date = 4;        // ISO 8601 timestamp for next tier
+  string projected_points_next_month = 5; // Decimal string for projected earnings
+  map<string, string> insights = 6;      // AI-generated insights
+}
+
+message GenerateRewardReportRequest {
+  string report_type = 1;                // summary, detailed, compliance
+  string start_date = 2;                 // ISO 8601 timestamp
+  string end_date = 3;                   // ISO 8601 timestamp
+  repeated string user_ids = 4;          // Empty for all users
+  string format = 5;                     // json, csv, pdf
+}
+
+message GenerateRewardReportResponse {
+  string report_id = 1;
+  string download_url = 2;
+  string format = 3;
+  int64 record_count = 4;
+  string generated_at = 5;               // ISO 8601 timestamp
+  string expires_at = 6;                 // ISO 8601 timestamp
+}
+
+message ExportRewardDataRequest {
+  string start_date = 1;                 // ISO 8601 timestamp
+  string end_date = 2;                   // ISO 8601 timestamp
+  repeated string data_types = 3;        // transactions, redemptions, rules, users
+  string format = 4;                     // json, csv
+  bool include_pii = 5;                  // Requires special permissions
+}
+
+message ExportRewardDataResponse {
+  string export_id = 1;
+  string download_url = 2;
+  string format = 3;
+  int64 record_count = 4;
+  string generated_at = 5;               // ISO 8601 timestamp
+  string expires_at = 6;                 // ISO 8601 timestamp
+}
+
+// Request/Response messages for administrative operations
+message BulkAwardPointsRequest {
+  repeated AwardPointsRequest awards = 1;
+  string batch_id = 2;
+  string reason = 3;
+}
+
+message BulkAwardPointsResponse {
+  repeated RewardTransaction transactions = 1;
+  int64 successful_awards = 2;
+  int64 failed_awards = 3;
+  repeated string error_messages = 4;
+  string batch_id = 5;
+}
+
+message ExpirePointsRequest {
+  string user_id = 1;                    // Empty for all users
+  string expiration_date = 2;            // ISO 8601 timestamp
+  bool dry_run = 3;                      // Preview mode
+}
+
+message ExpirePointsResponse {
+  repeated RewardTransaction expired_transactions = 1;
+  string total_points_expired = 2;       // Decimal string for total points expired
+  int64 users_affected = 3;
+  string message = 4;
+}
+
+message AdjustPointBalanceRequest {
+  string user_id = 1;
+  string adjustment_points = 2;          // Decimal string (positive or negative)
+  string reason = 3;
+  string reference_id = 4;
+  map<string, string> metadata = 5;
+}
+
+message AdjustPointBalanceResponse {
+  RewardTransaction transaction = 1;
+  UserRewards updated_rewards = 2;
+  string message = 3;
+}
+
+message GetRewardAuditTrailRequest {
+  string user_id = 1;                    // Empty for all users
+  string start_date = 2;                 // ISO 8601 timestamp
+  string end_date = 3;                   // ISO 8601 timestamp
+  repeated string action_types = 4;      // award, redeem, expire, adjust
+  int32 page = 5;
+  int32 page_size = 6;
+}
+
+message GetRewardAuditTrailResponse {
+  repeated AuditTrailEntry entries = 1;
+  int64 total_count = 2;
+  int32 page = 3;
+  int32 page_size = 4;
+}
+
+// Audit trail entry
+message AuditTrailEntry {
+  string id = 1;
+  string user_id = 2;
+  string action_type = 3;                // award, redeem, expire, adjust, tier_change
+  string entity_type = 4;                // reward_transaction, redemption, user_rewards
+  string entity_id = 5;
+  string old_value = 6;                  // JSON string of old state
+  string new_value = 7;                  // JSON string of new state
+  string reason = 8;
+  string performed_by = 9;               // User ID who performed the action
+  string ip_address = 10;
+  string user_agent = 11;
+  map<string, string> metadata = 12;
+  string created_at = 13;                // ISO 8601 timestamp
+}

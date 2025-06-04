@@ -1,0 +1,174 @@
+# Multi-stage Docker build for FO3 Wallet Core Production Deployment
+# Optimized for Phase 5B ML infrastructure and automated trading
+
+# Stage 1: Build environment
+FROM rust:1.75-slim as builder
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    pkg-config \
+    libssl-dev \
+    libpq-dev \
+    protobuf-compiler \
+    cmake \
+    build-essential \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Set working directory
+WORKDIR /app
+
+# Copy dependency files first for better caching
+COPY Cargo.toml Cargo.lock ./
+COPY proto/ ./proto/
+
+# Create dummy main.rs to build dependencies
+RUN mkdir src && echo "fn main() {}" > src/main.rs
+
+# Build dependencies (this layer will be cached)
+RUN cargo build --release && rm -rf src
+
+# Copy source code
+COPY src/ ./src/
+COPY build.rs ./
+
+# Build the application
+RUN cargo build --release --bin fo3-wallet-api
+
+# Stage 2: ML Models preparation
+FROM python:3.11-slim as ml-models
+
+# Install ML dependencies
+RUN pip install --no-cache-dir \
+    torch==2.1.0 \
+    transformers==4.35.0 \
+    scikit-learn==1.3.0 \
+    numpy==1.24.3 \
+    pandas==2.0.3
+
+# Create models directory
+WORKDIR /models
+
+# Copy model preparation scripts
+COPY scripts/prepare_ml_models.py ./
+COPY models/ ./
+
+# Prepare and optimize ML models
+RUN python prepare_ml_models.py --optimize --quantize
+
+# Stage 3: Production runtime
+FROM debian:bookworm-slim
+
+# Install runtime dependencies
+RUN apt-get update && apt-get install -y \
+    ca-certificates \
+    libssl3 \
+    libpq5 \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
+# Create app user for security
+RUN groupadd -r fo3 && useradd -r -g fo3 fo3
+
+# Set working directory
+WORKDIR /app
+
+# Copy binary from builder stage
+COPY --from=builder /app/target/release/fo3-wallet-api ./
+
+# Copy ML models from ml-models stage
+COPY --from=ml-models /models ./models/
+
+# Copy configuration files
+COPY config/production.toml ./config/
+COPY config/logging.yaml ./config/
+COPY scripts/entrypoint.sh ./
+
+# Create necessary directories
+RUN mkdir -p logs data cache && \
+    chown -R fo3:fo3 /app
+
+# Set executable permissions
+RUN chmod +x fo3-wallet-api entrypoint.sh
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
+
+# Expose ports
+EXPOSE 50051 8080 9090
+
+# Switch to non-root user
+USER fo3
+
+# Set environment variables
+ENV RUST_LOG=info
+ENV RUST_BACKTRACE=1
+ENV FO3_ENV=production
+ENV FO3_CONFIG_PATH=/app/config/production.toml
+ENV FO3_ML_MODELS_PATH=/app/models
+ENV FO3_LOG_CONFIG_PATH=/app/config/logging.yaml
+
+# Resource limits (can be overridden by Kubernetes)
+ENV FO3_MAX_MEMORY=2048
+ENV FO3_MAX_CPU_CORES=4
+ENV FO3_ML_WORKERS=2
+ENV FO3_GRPC_MAX_CONNECTIONS=1000
+
+# Performance tuning
+ENV TOKIO_WORKER_THREADS=8
+ENV RUST_MIN_STACK=8388608
+
+# Security settings
+ENV FO3_SECURITY_MODE=strict
+ENV FO3_AUDIT_LEVEL=full
+ENV FO3_RATE_LIMIT_ENABLED=true
+
+# ML configuration
+ENV FO3_ML_CACHE_SIZE=512
+ENV FO3_ML_BATCH_SIZE=32
+ENV FO3_ML_INFERENCE_TIMEOUT=5000
+
+# Trading configuration
+ENV FO3_TRADING_RISK_CHECKS=enabled
+ENV FO3_TRADING_CIRCUIT_BREAKER=enabled
+ENV FO3_TRADING_MAX_POSITIONS=100
+
+# Database configuration
+ENV FO3_DB_POOL_SIZE=20
+ENV FO3_DB_CONNECTION_TIMEOUT=30
+ENV FO3_DB_IDLE_TIMEOUT=600
+
+# Cache configuration
+ENV FO3_REDIS_POOL_SIZE=10
+ENV FO3_REDIS_CONNECTION_TIMEOUT=5
+ENV FO3_REDIS_COMMAND_TIMEOUT=3
+
+# Monitoring configuration
+ENV FO3_METRICS_ENABLED=true
+ENV FO3_TRACING_ENABLED=true
+ENV FO3_PROMETHEUS_PORT=9090
+
+# Entry point
+ENTRYPOINT ["./entrypoint.sh"]
+CMD ["./fo3-wallet-api"]
+
+# Labels for metadata
+LABEL maintainer="FO3 Wallet Core Team"
+LABEL version="5B.1.0"
+LABEL description="FO3 Wallet Core with ML infrastructure and automated trading"
+LABEL org.opencontainers.image.title="FO3 Wallet Core"
+LABEL org.opencontainers.image.description="Production-ready DeFi wallet with ML-powered trading"
+LABEL org.opencontainers.image.version="5B.1.0"
+LABEL org.opencontainers.image.vendor="FO3"
+LABEL org.opencontainers.image.licenses="MIT"
+LABEL org.opencontainers.image.source="https://github.com/bankchen1/fo3-wallet-core"
+
+# Build arguments for CI/CD
+ARG BUILD_DATE
+ARG VCS_REF
+ARG VERSION
+
+LABEL org.opencontainers.image.created=$BUILD_DATE
+LABEL org.opencontainers.image.revision=$VCS_REF
+LABEL org.opencontainers.image.version=$VERSION

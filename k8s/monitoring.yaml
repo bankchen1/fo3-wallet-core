@@ -1,0 +1,491 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: fo3-prometheus
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-prometheus
+    app.kubernetes.io/component: monitoring
+spec:
+  type: ClusterIP
+  ports:
+  - port: 9090
+    targetPort: 9090
+    protocol: TCP
+    name: prometheus
+  selector:
+    app.kubernetes.io/name: fo3-prometheus
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: fo3-prometheus-pvc
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-prometheus
+    app.kubernetes.io/component: monitoring
+spec:
+  accessModes:
+  - ReadWriteOnce
+  resources:
+    requests:
+      storage: 50Gi
+  storageClassName: fast-ssd
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: fo3-prometheus
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-prometheus
+    app.kubernetes.io/component: monitoring
+    app.kubernetes.io/version: "2.45"
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fo3-prometheus
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fo3-prometheus
+        app.kubernetes.io/component: monitoring
+    spec:
+      serviceAccountName: fo3-monitoring-service-account
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 65534
+        fsGroup: 65534
+      containers:
+      - name: prometheus
+        image: prom/prometheus:v2.45.0
+        imagePullPolicy: IfNotPresent
+        ports:
+        - containerPort: 9090
+          name: prometheus
+        args:
+        - '--config.file=/etc/prometheus/prometheus.yml'
+        - '--storage.tsdb.path=/prometheus'
+        - '--web.console.libraries=/etc/prometheus/console_libraries'
+        - '--web.console.templates=/etc/prometheus/consoles'
+        - '--storage.tsdb.retention.time=30d'
+        - '--storage.tsdb.retention.size=45GB'
+        - '--web.enable-lifecycle'
+        - '--web.enable-admin-api'
+        - '--web.external-url=http://prometheus.fo3wallet.com'
+        - '--storage.tsdb.wal-compression'
+        - '--query.max-concurrency=20'
+        - '--query.max-samples=50000000'
+        volumeMounts:
+        - name: prometheus-config
+          mountPath: /etc/prometheus
+        - name: prometheus-storage
+          mountPath: /prometheus
+        - name: prometheus-rules
+          mountPath: /etc/prometheus/rules
+        resources:
+          requests:
+            cpu: 500m
+            memory: 2Gi
+          limits:
+            cpu: 2
+            memory: 8Gi
+        livenessProbe:
+          httpGet:
+            path: /-/healthy
+            port: 9090
+          initialDelaySeconds: 30
+          periodSeconds: 15
+          timeoutSeconds: 10
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /-/ready
+            port: 9090
+          initialDelaySeconds: 5
+          periodSeconds: 5
+          timeoutSeconds: 4
+          failureThreshold: 3
+      volumes:
+      - name: prometheus-config
+        configMap:
+          name: fo3-prometheus-config
+      - name: prometheus-storage
+        persistentVolumeClaim:
+          claimName: fo3-prometheus-pvc
+      - name: prometheus-rules
+        configMap:
+          name: fo3-prometheus-rules
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-prometheus-config
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-prometheus
+    app.kubernetes.io/component: monitoring
+data:
+  prometheus.yml: |
+    global:
+      scrape_interval: 15s
+      evaluation_interval: 15s
+      external_labels:
+        cluster: 'fo3-wallet-production'
+        environment: 'production'
+
+    rule_files:
+      - "/etc/prometheus/rules/*.yml"
+
+    alerting:
+      alertmanagers:
+        - static_configs:
+            - targets:
+              - fo3-alertmanager:9093
+
+    scrape_configs:
+      # FO3 Wallet Core API
+      - job_name: 'fo3-wallet-core'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - fo3-wallet
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: fo3-wallet-core
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+        scrape_interval: 5s
+        metrics_path: /metrics
+
+      # PostgreSQL
+      - job_name: 'fo3-postgres'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - fo3-wallet
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: fo3-postgres
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: postgres-exporter
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $1:9187
+          target_label: __address__
+        scrape_interval: 30s
+
+      # Redis
+      - job_name: 'fo3-redis'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - fo3-wallet
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: fo3-redis
+        - source_labels: [__meta_kubernetes_pod_container_name]
+          action: keep
+          regex: redis-exporter
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $1:9121
+          target_label: __address__
+        scrape_interval: 30s
+
+      # Kubernetes API Server
+      - job_name: 'kubernetes-apiservers'
+        kubernetes_sd_configs:
+        - role: endpoints
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_namespace, __meta_kubernetes_service_name, __meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: default;kubernetes;https
+
+      # Kubernetes Nodes
+      - job_name: 'kubernetes-nodes'
+        kubernetes_sd_configs:
+        - role: node
+        scheme: https
+        tls_config:
+          ca_file: /var/run/secrets/kubernetes.io/serviceaccount/ca.crt
+        bearer_token_file: /var/run/secrets/kubernetes.io/serviceaccount/token
+        relabel_configs:
+        - action: labelmap
+          regex: __meta_kubernetes_node_label_(.+)
+        - target_label: __address__
+          replacement: kubernetes.default.svc:443
+        - source_labels: [__meta_kubernetes_node_name]
+          regex: (.+)
+          target_label: __metrics_path__
+          replacement: /api/v1/nodes/${1}/proxy/metrics
+
+      # Kubernetes Pods
+      - job_name: 'kubernetes-pods'
+        kubernetes_sd_configs:
+        - role: pod
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_prometheus_io_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_prometheus_io_port]
+          action: replace
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+          target_label: __address__
+        - action: labelmap
+          regex: __meta_kubernetes_pod_label_(.+)
+        - source_labels: [__meta_kubernetes_namespace]
+          action: replace
+          target_label: kubernetes_namespace
+        - source_labels: [__meta_kubernetes_pod_name]
+          action: replace
+          target_label: kubernetes_pod_name
+
+      # Node Exporter
+      - job_name: 'node-exporter'
+        kubernetes_sd_configs:
+        - role: endpoints
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_endpoints_name]
+          action: keep
+          regex: node-exporter
+        - source_labels: [__meta_kubernetes_endpoint_port_name]
+          action: keep
+          regex: node-exporter
+
+      # Jaeger
+      - job_name: 'fo3-jaeger'
+        kubernetes_sd_configs:
+        - role: pod
+          namespaces:
+            names:
+            - fo3-wallet
+        relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_label_app_kubernetes_io_name]
+          action: keep
+          regex: fo3-jaeger
+        - source_labels: [__address__]
+          action: replace
+          regex: ([^:]+)(?::\d+)?
+          replacement: $1:14269
+          target_label: __address__
+        scrape_interval: 30s
+
+    remote_write:
+      - url: "https://prometheus-remote-write.fo3wallet.com/api/v1/write"
+        queue_config:
+          max_samples_per_send: 1000
+          max_shards: 200
+          capacity: 2500
+        write_relabel_configs:
+        - source_labels: [__name__]
+          regex: 'fo3_.*|grpc_.*|http_.*|process_.*|go_.*'
+          action: keep
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fo3-prometheus-rules
+  namespace: fo3-wallet
+  labels:
+    app.kubernetes.io/name: fo3-prometheus
+    app.kubernetes.io/component: monitoring
+data:
+  fo3-wallet-alerts.yml: |
+    groups:
+    - name: fo3-wallet-core
+      rules:
+      # High Error Rate
+      - alert: FO3HighErrorRate
+        expr: rate(grpc_server_handled_total{grpc_code!="OK"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High error rate detected in FO3 Wallet Core"
+          description: "Error rate is {{ $value | humanizePercentage }} for service {{ $labels.job }}"
+
+      # High Response Time
+      - alert: FO3HighResponseTime
+        expr: histogram_quantile(0.95, rate(grpc_server_handling_seconds_bucket[5m])) > 0.2
+        for: 5m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High response time detected in FO3 Wallet Core"
+          description: "95th percentile response time is {{ $value }}s for service {{ $labels.job }}"
+
+      # Service Down
+      - alert: FO3ServiceDown
+        expr: up{job="fo3-wallet-core"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: fo3-wallet-core
+        annotations:
+          summary: "FO3 Wallet Core service is down"
+          description: "Service {{ $labels.job }} has been down for more than 1 minute"
+
+      # High CPU Usage
+      - alert: FO3HighCPUUsage
+        expr: rate(process_cpu_seconds_total{job="fo3-wallet-core"}[5m]) * 100 > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High CPU usage in FO3 Wallet Core"
+          description: "CPU usage is {{ $value | humanizePercentage }} for service {{ $labels.job }}"
+
+      # High Memory Usage
+      - alert: FO3HighMemoryUsage
+        expr: process_resident_memory_bytes{job="fo3-wallet-core"} / 1024 / 1024 / 1024 > 6
+        for: 10m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High memory usage in FO3 Wallet Core"
+          description: "Memory usage is {{ $value }}GB for service {{ $labels.job }}"
+
+      # Database Connection Issues
+      - alert: FO3DatabaseConnectionIssues
+        expr: increase(fo3_database_connection_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: critical
+          service: fo3-wallet-core
+        annotations:
+          summary: "Database connection issues in FO3 Wallet Core"
+          description: "{{ $value }} database connection errors in the last 5 minutes"
+
+      # Redis Connection Issues
+      - alert: FO3RedisConnectionIssues
+        expr: increase(fo3_redis_connection_errors_total[5m]) > 5
+        for: 2m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "Redis connection issues in FO3 Wallet Core"
+          description: "{{ $value }} Redis connection errors in the last 5 minutes"
+
+    - name: fo3-infrastructure
+      rules:
+      # PostgreSQL Down
+      - alert: FO3PostgreSQLDown
+        expr: up{job="fo3-postgres"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: fo3-postgres
+        annotations:
+          summary: "PostgreSQL database is down"
+          description: "PostgreSQL database has been down for more than 1 minute"
+
+      # Redis Down
+      - alert: FO3RedisDown
+        expr: up{job="fo3-redis"} == 0
+        for: 1m
+        labels:
+          severity: critical
+          service: fo3-redis
+        annotations:
+          summary: "Redis cache is down"
+          description: "Redis cache has been down for more than 1 minute"
+
+      # High Database Connections
+      - alert: FO3HighDatabaseConnections
+        expr: pg_stat_activity_count{job="fo3-postgres"} > 150
+        for: 5m
+        labels:
+          severity: warning
+          service: fo3-postgres
+        annotations:
+          summary: "High number of database connections"
+          description: "{{ $value }} active database connections"
+
+      # Disk Space Low
+      - alert: FO3DiskSpaceLow
+        expr: (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"}) * 100 < 10
+        for: 5m
+        labels:
+          severity: critical
+          service: infrastructure
+        annotations:
+          summary: "Low disk space"
+          description: "Disk space is {{ $value | humanizePercentage }} full on {{ $labels.instance }}"
+
+    - name: fo3-business-metrics
+      rules:
+      # Low Transaction Volume
+      - alert: FO3LowTransactionVolume
+        expr: rate(fo3_transactions_total[1h]) < 10
+        for: 30m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "Low transaction volume"
+          description: "Transaction rate is {{ $value }} transactions per second"
+
+      # High Failed Transactions
+      - alert: FO3HighFailedTransactions
+        expr: rate(fo3_transactions_total{status="failed"}[5m]) / rate(fo3_transactions_total[5m]) > 0.05
+        for: 10m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High failed transaction rate"
+          description: "Failed transaction rate is {{ $value | humanizePercentage }}"
+
+      # Authentication Failures
+      - alert: FO3HighAuthFailures
+        expr: rate(fo3_auth_failures_total[5m]) > 5
+        for: 5m
+        labels:
+          severity: warning
+          service: fo3-wallet-core
+        annotations:
+          summary: "High authentication failure rate"
+          description: "{{ $value }} authentication failures per second"

@@ -1,0 +1,183 @@
+# Kustomization for FO3 Wallet Core Kubernetes Deployment
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+metadata:
+  name: fo3-wallet-core
+  annotations:
+    config.kubernetes.io/local-config: "true"
+
+# Namespace
+namespace: fo3-wallet
+
+# Common Labels
+commonLabels:
+  app.kubernetes.io/name: fo3-wallet-core
+  app.kubernetes.io/version: "5.0.0"
+  app.kubernetes.io/part-of: fo3-wallet-platform
+  app.kubernetes.io/managed-by: kustomize
+  environment: production
+
+# Common Annotations
+commonAnnotations:
+  deployment.kubernetes.io/revision: "1"
+  config.kubernetes.io/origin: |
+    path: k8s/kustomization.yaml
+  documentation: "https://docs.fo3wallet.com/deployment"
+  contact: "devops@fo3wallet.com"
+
+# Resources
+resources:
+  - namespace.yaml
+  - configmap.yaml
+  - secrets.yaml
+  - rbac.yaml
+  - postgres.yaml
+  - redis.yaml
+  - fo3-wallet-core.yaml
+  - monitoring.yaml
+  - grafana.yaml
+  - ingress.yaml
+  - security.yaml
+
+# Images
+images:
+  - name: fo3wallet/fo3-wallet-core
+    newTag: "5.0.0"
+  - name: postgres
+    newTag: "15-alpine"
+  - name: redis
+    newTag: "7-alpine"
+  - name: prom/prometheus
+    newTag: "v2.45.0"
+  - name: grafana/grafana
+    newTag: "10.0.0"
+
+# Replicas
+replicas:
+  - name: fo3-wallet-core
+    count: 3
+  - name: fo3-prometheus
+    count: 1
+  - name: fo3-grafana
+    count: 1
+
+# ConfigMap Generator
+configMapGenerator:
+  - name: fo3-wallet-build-info
+    literals:
+      - BUILD_VERSION=5.0.0
+      - BUILD_DATE=2024-01-15T10:30:00Z
+      - BUILD_COMMIT=abc123def456
+      - BUILD_BRANCH=main
+      - BUILD_NUMBER=150
+      - DEPLOYMENT_ENVIRONMENT=production
+
+# Secret Generator
+secretGenerator:
+  - name: fo3-wallet-generated-secrets
+    type: Opaque
+    literals:
+      - DEPLOYMENT_ID=fo3-wallet-prod-20240115
+      - CLUSTER_ID=fo3-wallet-cluster-prod
+
+# Patches
+patches:
+  # Production resource limits
+  - target:
+      kind: Deployment
+      name: fo3-wallet-core
+    patch: |-
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/cpu
+        value: "4"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/limits/memory
+        value: "8Gi"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/cpu
+        value: "1"
+      - op: replace
+        path: /spec/template/spec/containers/0/resources/requests/memory
+        value: "2Gi"
+
+  # Production HPA settings
+  - target:
+      kind: HorizontalPodAutoscaler
+      name: fo3-wallet-core-hpa
+    patch: |-
+      - op: replace
+        path: /spec/minReplicas
+        value: 3
+      - op: replace
+        path: /spec/maxReplicas
+        value: 20
+      - op: replace
+        path: /spec/metrics/0/resource/target/averageUtilization
+        value: 70
+
+  # Production storage sizes
+  - target:
+      kind: PersistentVolumeClaim
+      name: fo3-postgres-pvc
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "100Gi"
+
+  - target:
+      kind: PersistentVolumeClaim
+      name: fo3-redis-pvc
+    patch: |-
+      - op: replace
+        path: /spec/resources/requests/storage
+        value: "20Gi"
+
+# Transformers
+transformers:
+  - |-
+    apiVersion: builtin
+    kind: NamespaceTransformer
+    metadata:
+      name: namespace-transformer
+      namespace: fo3-wallet
+    setRoleBindingSubjects: allServiceAccounts
+    unsetOnly: false
+    fieldSpecs:
+    - path: metadata/namespace
+      create: true
+
+# Generators
+generators:
+  - |-
+    apiVersion: builtin
+    kind: ConfigMapGenerator
+    metadata:
+      name: deployment-config
+    literals:
+      - DEPLOYMENT_TIMESTAMP=2024-01-15T10:30:00Z
+      - DEPLOYMENT_VERSION=5.0.0
+      - DEPLOYMENT_ENVIRONMENT=production
+
+# Validation
+openapi:
+  path: https://raw.githubusercontent.com/kubernetes/kubernetes/master/api/openapi-spec/swagger.json
+
+# Build metadata
+buildMetadata:
+  - name: fo3-wallet-core
+    options:
+      labels:
+        build.version: "5.0.0"
+        build.date: "2024-01-15T10:30:00Z"
+        build.commit: "abc123def456"
+      annotations:
+        build.ci-pipeline: "github-actions"
+        build.triggered-by: "automated-deployment"
+
+# Inventory
+inventory:
+  type: ConfigMap
+  configMap:
+    name: fo3-wallet-inventory
+    namespace: fo3-wallet

@@ -1,0 +1,186 @@
+# FO3 Wallet Core Development Configuration
+# Optimized for local validation and testing
+
+[server]
+# Server binding configuration
+grpc_listen_addr = "0.0.0.0:50051"
+websocket_listen_addr = "0.0.0.0:8080"
+metrics_listen_addr = "0.0.0.0:9090"
+health_check_addr = "0.0.0.0:8081"
+
+# TLS Configuration (disabled for local development)
+enable_tls = false
+tls_cert_path = ""
+tls_key_path = ""
+tls_ca_cert_path = ""
+
+[database]
+# Database configuration - supports both SQLite and PostgreSQL
+# SQLite for quick local development
+database_url = "sqlite://./fo3_wallet_dev.db"
+# PostgreSQL for production-like testing
+# database_url = "postgresql://fo3_user:fo3_dev_password@localhost:5432/fo3_wallet_dev"
+
+max_connections = 10
+connection_timeout_seconds = 30
+enable_query_logging = true
+auto_migrate = true
+
+[redis]
+# Redis configuration for caching and sessions
+redis_url = "redis://localhost:6379"
+connection_timeout_seconds = 5
+max_connections = 10
+enable_cluster = false
+
+[logging]
+# Logging configuration for development
+rust_log = "debug,fo3_wallet_api=trace,tower_http=debug"
+log_format = "pretty"
+enable_file_logging = true
+log_file_path = "./logs/fo3_wallet_dev.log"
+max_log_file_size_mb = 100
+max_log_files = 5
+
+[observability]
+# Observability and tracing configuration
+enable_tracing = true
+enable_metrics = true
+jaeger_endpoint = "http://localhost:14268/api/traces"
+prometheus_enabled = true
+trace_sampling_ratio = 1.0  # 100% sampling for development
+metrics_namespace = "fo3_wallet_dev"
+
+[security]
+# Security configuration for development
+jwt_secret = "dev_jwt_secret_change_in_production"
+jwt_expiration_hours = 24
+bcrypt_cost = 4  # Lower cost for faster development
+enable_rate_limiting = true
+rate_limit_requests_per_minute = 1000  # Generous for development
+enable_cors = true
+cors_allowed_origins = ["http://localhost:3000", "http://localhost:8080"]
+
+[blockchain]
+# Blockchain RPC configuration
+enable_ethereum = true
+enable_bitcoin = true
+enable_solana = true
+
+# Ethereum configuration
+ethereum_rpc_url = "https://mainnet.infura.io/v3/your-api-key"
+ethereum_api_key = ""
+ethereum_network = "mainnet"
+
+# Bitcoin configuration
+bitcoin_rpc_url = "https://blockstream.info/api"
+bitcoin_network = "mainnet"
+
+# Solana configuration
+solana_rpc_url = "https://api.mainnet-beta.solana.com"
+solana_network = "mainnet-beta"
+
+[kyc]
+# KYC service configuration
+storage_path = "./data/kyc_documents"
+max_file_size_mb = 10
+encryption_key = "dev_kyc_encryption_key_32_chars_long"
+allowed_document_types = ["passport", "drivers_license", "national_id", "utility_bill"]
+auto_approve_for_testing = false
+
+[fiat_gateway]
+# Fiat gateway configuration for development
+enable_mock_providers = true
+default_currency = "USD"
+supported_currencies = ["USD", "EUR", "GBP", "CAD"]
+transaction_timeout_seconds = 300
+max_daily_limit_usd = 10000
+max_monthly_limit_usd = 50000
+
+[card_service]
+# Virtual card service configuration
+enable_virtual_cards = true
+default_currency = "USD"
+supported_currencies = ["USD", "EUR", "GBP"]
+card_expiry_years = 3
+enable_apple_pay = true
+enable_google_pay = true
+daily_transaction_limit = 5000
+monthly_transaction_limit = 50000
+
+[pricing]
+# Pricing service configuration
+enable_coingecko = true
+coingecko_api_key = ""
+cache_ttl_seconds = 60
+max_api_calls_per_day = 10000
+supported_assets = ["BTC", "ETH", "USDC", "USDT", "SOL"]
+default_fiat_currency = "USD"
+
+[notifications]
+# Notification service configuration
+enable_websocket = true
+enable_email = false  # Disabled for development
+enable_push = false   # Disabled for development
+websocket_heartbeat_seconds = 30
+max_connections_per_user = 5
+
+[ml]
+# Machine Learning configuration
+enable_ml_features = true
+models_path = "./models"
+enable_sentiment_analysis = true
+enable_yield_prediction = true
+enable_risk_assessment = true
+enable_market_prediction = true
+model_cache_ttl_seconds = 3600
+
+[seed_data]
+# Seed data configuration for local validation
+enable_seed_data = true
+num_users = 100
+num_wallets_per_user = 2
+num_cards_per_user = 3
+num_transactions_per_card = 50
+num_referral_levels = 3
+num_yield_products = 20
+num_moonshot_tokens = 50
+enable_ml_training_data = true
+enable_audit_trails = true
+
+[testing]
+# Testing configuration
+enable_test_endpoints = true
+mock_external_services = true
+disable_authentication_for_tests = false
+test_data_cleanup_on_startup = false
+enable_performance_testing = true
+
+[performance]
+# Performance tuning for development
+worker_threads = 4
+max_blocking_threads = 16
+thread_stack_size_kb = 2048
+enable_async_profiling = true
+request_timeout_seconds = 30
+max_concurrent_requests = 1000
+
+[features]
+# Feature flags for development
+enable_referral_system = true
+enable_rewards_system = true
+enable_earn_products = true
+enable_moonshot_trading = true
+enable_automated_trading = true
+enable_dapp_browser = true
+enable_market_intelligence = true
+enable_spending_insights = true
+
+[validation]
+# Local validation configuration
+enable_end_to_end_tests = true
+enable_performance_validation = true
+enable_security_validation = true
+enable_integration_validation = true
+validation_timeout_seconds = 300
+max_validation_retries = 3
